@@ -1,0 +1,222 @@
+#!/usr/bin/env node
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+import { analyseSuccession } from "../engine/analyze.js";
+import { determineJurisdiction } from "../engine/jurisdiction.js";
+import { determineApplicableLaw } from "../engine/applicableLaw.js";
+import { getArticle, listArticles } from "../data/articles.js";
+import { CJEU_CASES, findCase } from "../data/cjeuCases.js";
+import {
+  listBoundMemberStates,
+  regulationStatus,
+} from "../data/memberStates.js";
+import type { SuccessionCase } from "../types.js";
+
+const CountryCode = z
+  .string()
+  .regex(/^[A-Za-z]{2}$/, "ISO 3166-1 alpha-2")
+  .describe("Code pays ISO 3166-1 alpha-2 (ex. FR, DE, IT)");
+
+const ResidencePeriod = z.object({
+  country: CountryCode,
+  years: z.number().nonnegative(),
+});
+
+const Deceased = z.object({
+  nationalities: z.array(CountryCode).min(0),
+  lastHabitualResidence: CountryCode,
+  residenceHistory: z.array(ResidencePeriod).optional(),
+  dateOfDeath: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+const ProfessioJuris = z.object({
+  chosenLaw: CountryCode,
+  form: z.enum(["express", "implicit-from-disposition"]),
+  dateOfChoice: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+const Disposition = z.object({
+  type: z.enum(["will", "joint-will", "succession-pact"]),
+  dateExecuted: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  lawChosenForAdmissibilityAndValidity: CountryCode.optional(),
+  otherPartyNationalities: z.array(z.array(CountryCode)).optional(),
+});
+
+const Asset = z.object({
+  kind: z.enum(["movable", "immovable"]),
+  locatedIn: CountryCode,
+  estimatedValueEUR: z.number().nonnegative().optional(),
+});
+
+const SuccessionCaseShape = {
+  deceased: Deceased,
+  professioJuris: ProfessioJuris.optional(),
+  dispositions: z.array(Disposition).optional(),
+  assets: z.array(Asset).optional(),
+  forumState: CountryCode.optional(),
+  manifestlyCloserConnectionWith: CountryCode.optional(),
+};
+
+function asText(obj: unknown): { content: { type: "text"; text: string }[] } {
+  return {
+    content: [
+      { type: "text", text: JSON.stringify(obj, null, 2) },
+    ],
+  };
+}
+
+export function buildServer(): McpServer {
+  const server = new McpServer(
+    { name: "eurlex-family-mcp", version: "0.1.0" },
+    {
+      capabilities: { tools: {}, resources: {}, prompts: {} },
+      instructions:
+        "Moteur de qualification en droit international successoral européen. Outils : analyze_succession, determine_jurisdiction, determine_applicable_law, get_article, list_articles, get_cjeu_case, list_cjeu_cases, list_member_states, regulation_status.",
+    },
+  );
+
+  server.registerTool(
+    "analyze_succession",
+    {
+      title: "Analyser une succession (Règl. UE 650/2012)",
+      description:
+        "Analyse complète d'une situation successorale : champ temporel, juridiction (art. 4-11), loi applicable (art. 21-22, 34), dispositions à cause de mort (art. 24-25), recommandation CSE.",
+      inputSchema: SuccessionCaseShape,
+    },
+    async (input) => {
+      const analysis = analyseSuccession(input as SuccessionCase);
+      return asText(analysis);
+    },
+  );
+
+  server.registerTool(
+    "determine_jurisdiction",
+    {
+      title: "Déterminer la juridiction compétente",
+      description:
+        "Détermine la juridiction compétente selon les art. 4, 5-7, 10 et 11 du Règl. (UE) 650/2012.",
+      inputSchema: SuccessionCaseShape,
+    },
+    async (input) => {
+      return asText(determineJurisdiction(input as SuccessionCase));
+    },
+  );
+
+  server.registerTool(
+    "determine_applicable_law",
+    {
+      title: "Déterminer la loi applicable à la succession",
+      description:
+        "Détermine la loi successorale applicable selon les art. 20-22 et 34 du Règl. (UE) 650/2012.",
+      inputSchema: SuccessionCaseShape,
+    },
+    async (input) => {
+      return asText(determineApplicableLaw(input as SuccessionCase));
+    },
+  );
+
+  server.registerTool(
+    "get_article",
+    {
+      title: "Résumé d'un article du règlement",
+      description:
+        "Renvoie le titre et un résumé d'un article du Règl. (UE) 650/2012.",
+      inputSchema: {
+        articleNumber: z
+          .string()
+          .describe("Numéro d'article (ex. '21', '22', '34')"),
+      },
+    },
+    async ({ articleNumber }) => {
+      const a = getArticle(articleNumber);
+      if (!a) {
+        return asText({ error: `Article ${articleNumber} non trouvé.` });
+      }
+      return asText(a);
+    },
+  );
+
+  server.registerTool(
+    "list_articles",
+    {
+      title: "Liste des articles référencés",
+      description: "Liste les articles du règlement disponibles dans le moteur.",
+      inputSchema: {},
+    },
+    async () => asText(listArticles()),
+  );
+
+  server.registerTool(
+    "get_cjeu_case",
+    {
+      title: "Fiche d'une décision CJUE",
+      description:
+        "Renvoie la fiche d'une décision de la CJUE interprétant le Règl. (UE) 650/2012.",
+      inputSchema: {
+        identifier: z
+          .string()
+          .describe("Numéro d'affaire (ex. 'C-218/16') ou nom (ex. 'Kubicka')"),
+      },
+    },
+    async ({ identifier }) => {
+      const c = findCase(identifier);
+      if (!c) return asText({ error: `Affaire ${identifier} non trouvée.` });
+      return asText(c);
+    },
+  );
+
+  server.registerTool(
+    "list_cjeu_cases",
+    {
+      title: "Décisions CJUE référencées",
+      description: "Liste les décisions CJUE embarquées dans le moteur.",
+      inputSchema: {},
+    },
+    async () => asText(CJEU_CASES),
+  );
+
+  server.registerTool(
+    "list_member_states",
+    {
+      title: "États membres liés par le règlement",
+      description:
+        "Liste les codes ISO des États membres de l'UE liés par le Règl. (UE) 650/2012.",
+      inputSchema: {},
+    },
+    async () => asText(listBoundMemberStates()),
+  );
+
+  server.registerTool(
+    "regulation_status",
+    {
+      title: "Statut d'un pays au regard du règlement",
+      description:
+        "Renvoie 'bound' (EM lié), 'eu-not-bound' (IE/DK) ou 'third-state'.",
+      inputSchema: { country: CountryCode },
+    },
+    async ({ country }) => {
+      return asText({ country: country.toUpperCase(), status: regulationStatus(country) });
+    },
+  );
+
+  return server;
+}
+
+async function main(): Promise<void> {
+  const server = buildServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+const entry =
+  typeof process !== "undefined" &&
+  process.argv[1] &&
+  (process.argv[1].endsWith("server.ts") || process.argv[1].endsWith("server.js"));
+
+if (entry) {
+  main().catch((err) => {
+    process.stderr.write(`MCP server error: ${(err as Error).stack ?? err}\n`);
+    process.exit(1);
+  });
+}
