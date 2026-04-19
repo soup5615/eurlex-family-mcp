@@ -1,21 +1,27 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { argv, stdin } from "node:process";
 import { analyseSuccession } from "./engine/analyze.js";
 import { getArticle, listArticles } from "./data/articles.js";
 import { CJEU_CASES, findCase } from "./data/cjeuCases.js";
 import { listBoundMemberStates } from "./data/memberStates.js";
+import { listThirdStateRules } from "./data/thirdStatePIL.js";
+import { renderConsultationHTML } from "./render/html.js";
 import type { SuccessionCase, SuccessionAnalysis } from "./types.js";
 
 const USAGE = `eurlex-family — moteur de qualification du Règl. (UE) 650/2012
 
 Commandes :
-  analyze [--file <case.json>]   Analyse un cas de succession (JSON sur stdin si --file absent).
+  analyze [--file <case.json>] [--json-out]
+                                 Analyse un cas (JSON sur stdin si --file absent).
+  consultation [--file <case.json>] [--out <note.html>] [--title "..."]
+                                 Génère une note de consultation HTML.
   article <numéro>               Affiche le résumé d'un article (ex. 21, 22, 34).
   articles                       Liste tous les articles référencés.
   case <id|nom>                  Affiche une décision de la CJUE (ex. C-218/16, Kubicka).
   cases                          Liste les décisions de la CJUE référencées.
   states                         Liste les États membres liés par le règlement.
+  third-states                   Liste les États tiers dont le DIP est embarqué (renvoi).
   help                           Affiche cette aide.
 
 Format du cas (JSON) :
@@ -77,6 +83,24 @@ function renderAnalysis(a: SuccessionAnalysis): string {
   }
   for (const w of a.applicableLaw.warnings) lines.push(`  ! ${w}`);
 
+  if (a.renvoi.considered || a.renvoi.blockedByArt34_2) {
+    lines.push("");
+    lines.push("-- Renvoi (art. 34) --");
+    lines.push(`Examiné : ${a.renvoi.considered ? "oui" : "non"}`);
+    if (a.renvoi.blockedByArt34_2) {
+      lines.push("Bloqué par art. 34(2) (loi désignée par art. 21(2), 22, 24, 25, 27, 28(b) ou 30).");
+    }
+    lines.push(`Motif : ${a.renvoi.rationale}`);
+    if (a.renvoi.referralTarget) {
+      lines.push(`Loi matérielle finalement retenue : ${a.renvoi.referralTarget}`);
+    }
+    if (a.renvoi.dataSource) lines.push(`Source DIP : ${a.renvoi.dataSource}`);
+    for (const r of a.renvoi.reasoning) {
+      lines.push(`  • ${r.article} — ${r.conclusion}`);
+    }
+    for (const w of a.renvoi.warnings) lines.push(`  ! ${w}`);
+  }
+
   if (a.dispositions.length > 0) {
     lines.push("");
     lines.push("-- Dispositions à cause de mort --");
@@ -86,6 +110,15 @@ function renderAnalysis(a: SuccessionAnalysis): string {
       );
       for (const r of d.reasoning) {
         lines.push(`      ${r.article} — ${r.conclusion}`);
+      }
+      if (d.formalValidity.applicable) {
+        const laws = Array.from(new Set(d.formalValidity.candidateLaws.map((c) => c.law)));
+        lines.push(
+          `      Validité formelle (art. 27) — lois testables : ${laws.join(", ") || "(aucune)"}`,
+        );
+        for (const c of d.formalValidity.candidateLaws) {
+          lines.push(`          · ${c.law} — ${c.connection} (${c.explanation})`);
+        }
       }
     }
   }
@@ -108,7 +141,7 @@ function renderAnalysis(a: SuccessionAnalysis): string {
   return lines.join("\n");
 }
 
-async function runAnalyze(args: string[]): Promise<void> {
+async function readCase(args: string[]): Promise<SuccessionCase> {
   let raw: string;
   const fileFlag = args.indexOf("--file");
   if (fileFlag >= 0) {
@@ -125,12 +158,36 @@ async function runAnalyze(args: string[]): Promise<void> {
       "Aucun cas fourni. Passer un JSON via stdin ou --file <chemin>.",
     );
   }
-  const input = JSON.parse(raw) as SuccessionCase;
+  return JSON.parse(raw) as SuccessionCase;
+}
+
+async function runAnalyze(args: string[]): Promise<void> {
+  const input = await readCase(args);
   const analysis = analyseSuccession(input);
   if (args.includes("--json-out")) {
     process.stdout.write(JSON.stringify(analysis, null, 2) + "\n");
   } else {
     process.stdout.write(renderAnalysis(analysis) + "\n");
+  }
+}
+
+async function runConsultation(args: string[]): Promise<void> {
+  const input = await readCase(args);
+  const analysis = analyseSuccession(input);
+  const titleIdx = args.indexOf("--title");
+  const title = titleIdx >= 0 ? args[titleIdx + 1] : undefined;
+  const html = renderConsultationHTML(
+    analysis,
+    title ? { title } : {},
+  );
+  const outIdx = args.indexOf("--out");
+  if (outIdx >= 0) {
+    const path = args[outIdx + 1];
+    if (!path) throw new Error("--out attend un chemin.");
+    writeFileSync(path, html, "utf8");
+    process.stderr.write(`Note écrite : ${path}\n`);
+  } else {
+    process.stdout.write(html);
   }
 }
 
@@ -145,6 +202,18 @@ async function main(): Promise<number> {
 
   if (cmd === "analyze") {
     await runAnalyze(args.slice(1));
+    return 0;
+  }
+
+  if (cmd === "consultation") {
+    await runConsultation(args.slice(1));
+    return 0;
+  }
+
+  if (cmd === "third-states") {
+    for (const r of listThirdStateRules()) {
+      process.stdout.write(`${r.country.padEnd(4)} ${r.source}\n`);
+    }
     return 0;
   }
 

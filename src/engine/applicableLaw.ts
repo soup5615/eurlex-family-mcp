@@ -86,7 +86,7 @@ export function determineApplicableLaw(
 
   if (hrStatus === "third-state") {
     warnings.push(
-      `Art. 34 : ${hr} étant un État tiers, il convient de consulter ses règles de droit international privé. Si elles renvoient (a) à la loi d'un État membre, ou (b) à la loi d'un autre État tiers qui appliquerait sa propre loi, ce renvoi doit être accepté. Ce moteur n'embarque pas encore les règles DIP des États tiers.`,
+      `Art. 34 : ${hr} étant un État tiers, le moteur examine le renvoi via son DIP (voir section renvoi).`,
     );
   } else if (hrStatus === "eu-not-bound") {
     warnings.push(

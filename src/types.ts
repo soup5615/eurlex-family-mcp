@@ -37,6 +37,28 @@ export interface Disposition {
   // For succession pacts: nationalities of other parties matter for
   // substantive validity (Art. 25(2)).
   otherPartyNationalities?: CountryCode[][];
+  // Formal-validity data (Art. 27). All fields optional; the engine
+  // tests each connection factor and returns which laws make the
+  // disposition formally valid.
+  form?: {
+    // Whether the instrument is written; Art. 27 only applies to
+    // written dispositions (oral dispositions are excluded by Art.
+    // 1(2)(f)).
+    written?: boolean;
+    // Whether the instrument is handwritten / holograph (may be
+    // relevant for some national laws).
+    holograph?: boolean;
+    // Whether two or more persons disposed in a single instrument
+    // (joint will). Triggers Art. 27(2) which extends the connection
+    // factors for each disponent.
+    joint?: boolean;
+    placeOfMaking?: CountryCode;
+    // Snapshot of relevant connection factors at the time the
+    // disposition was made.
+    nationalitiesAtMaking?: CountryCode[];
+    domicileAtMaking?: CountryCode;
+    habitualResidenceAtMaking?: CountryCode;
+  };
 }
 
 export type AssetKind = "movable" | "immovable";
@@ -107,6 +129,33 @@ export interface ApplicableLawDetermination {
   warnings: string[];
 }
 
+export type FormalValidityConnection =
+  | "art-27-1-a-locus-regit-actum"
+  | "art-27-1-b-nationality-at-making"
+  | "art-27-1-b-nationality-at-death"
+  | "art-27-1-c-domicile-at-making"
+  | "art-27-1-c-domicile-at-death"
+  | "art-27-1-d-habitual-residence-at-making"
+  | "art-27-1-d-habitual-residence-at-death"
+  | "art-27-1-e-lex-rei-sitae-immovables";
+
+export interface FormalValidityBasis {
+  law: CountryCode;
+  connection: FormalValidityConnection;
+  explanation: string;
+}
+
+export interface FormalValidityAnalysis {
+  applicable: boolean; // Art. 27 applies only to written dispositions
+  // A written disposition is formally valid if at least one of the
+  // connection-based laws validates it. This engine surfaces the
+  // candidate laws; whether each validates the form under its own
+  // rules is a matter of substantive national law beyond scope.
+  candidateLaws: FormalValidityBasis[];
+  reasoning: ReasoningStep[];
+  warnings: string[];
+}
+
 export interface DispositionAnalysis {
   disposition: Disposition;
   lawGoverningAdmissibilityAndValidity: CountryCode | null;
@@ -115,6 +164,22 @@ export interface DispositionAnalysis {
        | "art-25-2-multi-person-hypothetical-laws"
        | "art-25-3-choice";
   reasoning: ReasoningStep[];
+  formalValidity: FormalValidityAnalysis;
+}
+
+export interface RenvoiAnalysis {
+  considered: boolean;
+  // Art. 34(2) blocks renvoi when the designated law was designated by
+  // art. 21(2), 22, 24, 25, 27, 28(b) or 30.
+  blockedByArt34_2: boolean;
+  // Outcome of applying the PIL of the designated third state.
+  designatedStateAppliesOwnLaw: boolean | null;
+  referralAccepted: boolean;
+  referralTarget: CountryCode | null;
+  rationale: string;
+  dataSource?: string;
+  reasoning: ReasoningStep[];
+  warnings: string[];
 }
 
 export interface ESCRecommendation {
@@ -141,6 +206,7 @@ export interface SuccessionAnalysis {
   materialScope: MaterialScope;
   jurisdiction: JurisdictionDetermination;
   applicableLaw: ApplicableLawDetermination;
+  renvoi: RenvoiAnalysis;
   dispositions: DispositionAnalysis[];
   esc: ESCRecommendation;
   flags: string[]; // e.g. ordre public, complex renvoi, transitional

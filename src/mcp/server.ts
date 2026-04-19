@@ -5,13 +5,17 @@ import { z } from "zod";
 import { analyseSuccession } from "../engine/analyze.js";
 import { determineJurisdiction } from "../engine/jurisdiction.js";
 import { determineApplicableLaw } from "../engine/applicableLaw.js";
+import { analyseRenvoi } from "../engine/renvoi.js";
+import { analyseFormalValidity } from "../engine/formalValidity.js";
 import { getArticle, listArticles } from "../data/articles.js";
 import { CJEU_CASES, findCase } from "../data/cjeuCases.js";
 import {
   listBoundMemberStates,
   regulationStatus,
 } from "../data/memberStates.js";
-import type { SuccessionCase } from "../types.js";
+import { listThirdStateRules } from "../data/thirdStatePIL.js";
+import { renderConsultationHTML } from "../render/html.js";
+import type { Disposition, SuccessionCase } from "../types.js";
 
 const CountryCode = z
   .string()
@@ -36,11 +40,22 @@ const ProfessioJuris = z.object({
   dateOfChoice: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
-const Disposition = z.object({
+const DispositionForm = z.object({
+  written: z.boolean().optional(),
+  holograph: z.boolean().optional(),
+  joint: z.boolean().optional(),
+  placeOfMaking: CountryCode.optional(),
+  nationalitiesAtMaking: z.array(CountryCode).optional(),
+  domicileAtMaking: CountryCode.optional(),
+  habitualResidenceAtMaking: CountryCode.optional(),
+});
+
+const DispositionSchema = z.object({
   type: z.enum(["will", "joint-will", "succession-pact"]),
   dateExecuted: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   lawChosenForAdmissibilityAndValidity: CountryCode.optional(),
   otherPartyNationalities: z.array(z.array(CountryCode)).optional(),
+  form: DispositionForm.optional(),
 });
 
 const Asset = z.object({
@@ -52,7 +67,7 @@ const Asset = z.object({
 const SuccessionCaseShape = {
   deceased: Deceased,
   professioJuris: ProfessioJuris.optional(),
-  dispositions: z.array(Disposition).optional(),
+  dispositions: z.array(DispositionSchema).optional(),
   assets: z.array(Asset).optional(),
   forumState: CountryCode.optional(),
   manifestlyCloserConnectionWith: CountryCode.optional(),
@@ -113,6 +128,79 @@ export function buildServer(): McpServer {
     },
     async (input) => {
       return asText(determineApplicableLaw(input as SuccessionCase));
+    },
+  );
+
+  server.registerTool(
+    "analyse_renvoi",
+    {
+      title: "Analyser le renvoi (art. 34)",
+      description:
+        "Applique les règles de DIP de l'État désigné et, le cas échéant, accepte un renvoi vers la loi d'un EM (art. 34(1)(a)) ou d'un État tiers appliquant sa propre loi (art. 34(1)(b)).",
+      inputSchema: SuccessionCaseShape,
+    },
+    async (input) => {
+      const law = determineApplicableLaw(input as SuccessionCase);
+      return asText(analyseRenvoi(input as SuccessionCase, law));
+    },
+  );
+
+  server.registerTool(
+    "analyse_formal_validity",
+    {
+      title: "Valider la forme d'une disposition (art. 27)",
+      description:
+        "Liste les lois qui, en vertu de l'art. 27, pourraient valider la forme d'une disposition écrite (lieu, nationalité, domicile, résidence habituelle, lex rei sitae).",
+      inputSchema: {
+        case: z.object(SuccessionCaseShape),
+        disposition: DispositionSchema,
+      },
+    },
+    async ({ case: c, disposition }) => {
+      return asText(
+        analyseFormalValidity(
+          disposition as Disposition,
+          c as SuccessionCase,
+        ),
+      );
+    },
+  );
+
+  server.registerTool(
+    "consultation_html",
+    {
+      title: "Générer une note de consultation (HTML)",
+      description:
+        "Produit une note de consultation HTML exhaustive à partir d'un cas.",
+      inputSchema: {
+        case: z.object(SuccessionCaseShape),
+        title: z.string().optional(),
+      },
+    },
+    async ({ case: c, title }) => {
+      const analysis = analyseSuccession(c as SuccessionCase);
+      const html = renderConsultationHTML(
+        analysis,
+        title ? { title } : {},
+      );
+      return { content: [{ type: "text", text: html }] };
+    },
+  );
+
+  server.registerTool(
+    "list_third_states",
+    {
+      title: "États tiers dont le DIP est embarqué (art. 34)",
+      description:
+        "Liste les États tiers pour lesquels le moteur peut tester un renvoi opérationnel.",
+      inputSchema: {},
+    },
+    async () => {
+      const items = listThirdStateRules().map((r) => ({
+        country: r.country,
+        source: r.source,
+      }));
+      return asText(items);
     },
   );
 
