@@ -15,7 +15,19 @@ import {
 } from "../data/memberStates.js";
 import { listThirdStateRules } from "../data/thirdStatePIL.js";
 import { renderConsultationHTML } from "../render/html.js";
+import { analyseMatrimonial } from "../matrimonial/engine/analyze.js";
+import { determineMatrimonialJurisdiction } from "../matrimonial/engine/jurisdiction.js";
+import { determineMatrimonialApplicableLaw } from "../matrimonial/engine/applicableLaw.js";
+import {
+  getMatrimonialArticle,
+  listMatrimonialArticles,
+} from "../matrimonial/articles.js";
+import {
+  listMatrimonialBoundStates,
+  matrimonialRegulationStatus,
+} from "../matrimonial/memberStates.js";
 import type { Disposition, SuccessionCase } from "../types.js";
+import type { MatrimonialCase } from "../matrimonial/types.js";
 
 const CountryCode = z
   .string()
@@ -285,6 +297,174 @@ export function buildServer(): McpServer {
     },
     async ({ country }) => {
       return asText({ country: country.toUpperCase(), status: regulationStatus(country) });
+    },
+  );
+
+  // -----------------------------------------------------------------
+  // Brique 2 — Regulation (EU) 2016/1103 (matrimonial property regimes)
+  // -----------------------------------------------------------------
+
+  const Spouse = z.object({
+    id: z.string(),
+    nationalities: z.array(CountryCode),
+    habitualResidence: CountryCode,
+    residenceHistory: z.array(ResidencePeriod).optional(),
+  });
+
+  const Marriage = z.object({
+    dateOfMarriage: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    placeOfMarriage: CountryCode.optional(),
+  });
+
+  const MatrimonialChoiceOfLaw = z.object({
+    chosenLaw: CountryCode,
+    form: z.enum(["express-writing", "implicit-from-mpa"]),
+    dateOfChoice: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    retroactive: z.boolean().optional(),
+    inWritingDatedSigned: z.boolean().optional(),
+    hrAtChoice: z
+      .array(z.object({ spouseId: z.string(), country: CountryCode }))
+      .optional(),
+  });
+
+  const MpaSchema = z.object({
+    dateExecuted: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    kind: z.enum([
+      "separation-of-property",
+      "community-of-property",
+      "participation-in-acquisitions",
+      "other",
+      "none",
+    ]),
+    placeOfExecution: CountryCode.optional(),
+    inWritingDatedSigned: z.boolean().optional(),
+  });
+
+  const MatrimonialContext = z.object({
+    deathOfSpouse: z
+      .object({
+        spouseId: z.string(),
+        forumSeisedForSuccession: CountryCode.optional(),
+      })
+      .optional(),
+    matrimonialCause: z
+      .object({
+        kind: z.enum(["divorce", "separation", "annulment"]),
+        forumSeisedForDivorce: CountryCode.optional(),
+        seisedAfterJanuary29_2019: z.boolean().optional(),
+      })
+      .optional(),
+    forumState: CountryCode.optional(),
+    choiceOfCourt: z
+      .object({
+        mostRecentState: CountryCode,
+        inWritingDatedSigned: z.boolean(),
+      })
+      .optional(),
+  });
+
+  const MatrimonialCaseShape = {
+    spouses: z.tuple([Spouse, Spouse]),
+    marriage: Marriage,
+    choiceOfLaw: MatrimonialChoiceOfLaw.optional(),
+    mpa: MpaSchema.optional(),
+    context: MatrimonialContext,
+    jurisdictionAssets: z
+      .array(
+        z.object({
+          locatedIn: CountryCode,
+          kind: z.enum(["movable", "immovable"]),
+        }),
+      )
+      .optional(),
+  };
+
+  server.registerTool(
+    "analyze_matrimonial_regime",
+    {
+      title: "Analyser un régime matrimonial (Règl. UE 2016/1103)",
+      description:
+        "Analyse complète d'un régime matrimonial : champ temporel (art. 69), juridiction (art. 4-11), loi applicable (art. 22, 26, 32), validité formelle MPA/choix de loi (art. 23, 25).",
+      inputSchema: MatrimonialCaseShape,
+    },
+    async (input) => asText(analyseMatrimonial(input as MatrimonialCase)),
+  );
+
+  server.registerTool(
+    "determine_matrimonial_jurisdiction",
+    {
+      title: "Déterminer la juridiction compétente (régime matrimonial)",
+      description:
+        "Détermine la juridiction compétente selon les art. 4, 5, 6, 7, 10 et 11 du Règl. (UE) 2016/1103.",
+      inputSchema: MatrimonialCaseShape,
+    },
+    async (input) =>
+      asText(determineMatrimonialJurisdiction(input as MatrimonialCase)),
+  );
+
+  server.registerTool(
+    "determine_matrimonial_applicable_law",
+    {
+      title: "Déterminer la loi applicable au régime matrimonial",
+      description:
+        "Applique l'art. 22 (choix) puis la cascade de l'art. 26 ; rappelle l'exclusion du renvoi (art. 32).",
+      inputSchema: MatrimonialCaseShape,
+    },
+    async (input) =>
+      asText(determineMatrimonialApplicableLaw(input as MatrimonialCase)),
+  );
+
+  server.registerTool(
+    "get_matrimonial_article",
+    {
+      title: "Résumé d'un article du Règl. 2016/1103",
+      description: "Renvoie le résumé d'un article du règlement régimes matrimoniaux.",
+      inputSchema: {
+        articleNumber: z.string(),
+      },
+    },
+    async ({ articleNumber }) => {
+      const a = getMatrimonialArticle(articleNumber);
+      if (!a) return asText({ error: `Article ${articleNumber} non trouvé.` });
+      return asText(a);
+    },
+  );
+
+  server.registerTool(
+    "list_matrimonial_articles",
+    {
+      title: "Liste des articles du Règl. 2016/1103 référencés",
+      description:
+        "Liste les articles couverts par le moteur régimes matrimoniaux.",
+      inputSchema: {},
+    },
+    async () => asText(listMatrimonialArticles()),
+  );
+
+  server.registerTool(
+    "list_matrimonial_member_states",
+    {
+      title: "États liés par le Règl. 2016/1103 (coopération renforcée)",
+      description:
+        "Liste les 18 États membres participant à la coopération renforcée sur les régimes matrimoniaux.",
+      inputSchema: {},
+    },
+    async () => asText(listMatrimonialBoundStates()),
+  );
+
+  server.registerTool(
+    "matrimonial_regulation_status",
+    {
+      title: "Statut d'un pays au regard du Règl. 2016/1103",
+      description:
+        "Renvoie 'bound' (EM participant), 'eu-not-bound' ou 'third-state'.",
+      inputSchema: { country: CountryCode },
+    },
+    async ({ country }) => {
+      return asText({
+        country: country.toUpperCase(),
+        status: matrimonialRegulationStatus(country),
+      });
     },
   );
 

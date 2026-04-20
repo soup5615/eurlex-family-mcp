@@ -19,3 +19,27 @@ export {
   listThirdStateRules,
 } from "./data/thirdStatePIL.js";
 export type * from "./types.js";
+
+// Brique 2 — Regulation (EU) 2016/1103 (matrimonial property regimes).
+export { analyseMatrimonial } from "./matrimonial/engine/analyze.js";
+export { determineMatrimonialJurisdiction } from "./matrimonial/engine/jurisdiction.js";
+export { determineMatrimonialApplicableLaw } from "./matrimonial/engine/applicableLaw.js";
+export {
+  analyseMpaFormalValidity,
+  analyseChoiceOfLawFormalValidity,
+} from "./matrimonial/engine/mpa.js";
+export {
+  checkMatrimonialTemporalScope,
+  checkMatrimonialMaterialScope,
+} from "./matrimonial/engine/scope.js";
+export {
+  MATRIMONIAL_ARTICLES,
+  getMatrimonialArticle,
+  listMatrimonialArticles,
+} from "./matrimonial/articles.js";
+export {
+  isMatrimonialBoundState,
+  listMatrimonialBoundStates,
+  matrimonialRegulationStatus,
+} from "./matrimonial/memberStates.js";
+export type * as Matrimonial from "./matrimonial/types.js";

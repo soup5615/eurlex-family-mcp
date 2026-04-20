@@ -7,7 +7,14 @@ import { CJEU_CASES, findCase } from "./data/cjeuCases.js";
 import { listBoundMemberStates } from "./data/memberStates.js";
 import { listThirdStateRules } from "./data/thirdStatePIL.js";
 import { renderConsultationHTML } from "./render/html.js";
+import { analyseMatrimonial } from "./matrimonial/engine/analyze.js";
+import {
+  getMatrimonialArticle,
+  listMatrimonialArticles,
+} from "./matrimonial/articles.js";
+import { listMatrimonialBoundStates } from "./matrimonial/memberStates.js";
 import type { SuccessionCase, SuccessionAnalysis } from "./types.js";
+import type { MatrimonialCase, MatrimonialAnalysis } from "./matrimonial/types.js";
 
 const USAGE = `eurlex-family — moteur de qualification du Règl. (UE) 650/2012
 
@@ -22,6 +29,13 @@ Commandes :
   cases                          Liste les décisions de la CJUE référencées.
   states                         Liste les États membres liés par le règlement.
   third-states                   Liste les États tiers dont le DIP est embarqué (renvoi).
+
+Régimes matrimoniaux (Règl. UE 2016/1103) :
+  matrimonial analyze [--file <case.json>] [--json-out]
+  matrimonial article <numéro>
+  matrimonial articles
+  matrimonial states
+
   help                           Affiche cette aide.
 
 Format du cas (JSON) :
@@ -171,6 +185,138 @@ async function runAnalyze(args: string[]): Promise<void> {
   }
 }
 
+async function readMatrimonialCase(args: string[]): Promise<MatrimonialCase> {
+  let raw: string;
+  const fileFlag = args.indexOf("--file");
+  if (fileFlag >= 0) {
+    const path = args[fileFlag + 1];
+    if (!path) throw new Error("--file attend un chemin.");
+    raw = readFileSync(path, "utf8");
+  } else {
+    raw = await readStdin();
+  }
+  if (!raw.trim()) {
+    throw new Error(
+      "Aucun cas fourni. Passer un JSON via stdin ou --file <chemin>.",
+    );
+  }
+  return JSON.parse(raw) as MatrimonialCase;
+}
+
+function renderMatrimonial(a: MatrimonialAnalysis): string {
+  const lines: string[] = [];
+  lines.push("== Analyse régime matrimonial (Règl. UE 2016/1103) ==");
+  lines.push("");
+  lines.push(
+    `Champ temporel : ${a.temporalScope.applicable ? "OUI" : "NON"} — ${a.temporalScope.reason}`,
+  );
+  lines.push("");
+  lines.push("-- Compétence --");
+  lines.push(`Forum : ${a.jurisdiction.competentForum ?? "aucun"}`);
+  lines.push(`Base : ${a.jurisdiction.basis}`);
+  lines.push(`Portée : ${a.jurisdiction.scope}`);
+  for (const r of a.jurisdiction.reasoning) {
+    lines.push(`  • ${r.article}`);
+    lines.push(`    Règle : ${r.rule}`);
+    lines.push(`    Application : ${r.appliedTo}`);
+    lines.push(`    Conclusion : ${r.conclusion}`);
+  }
+  for (const w of a.jurisdiction.warnings) lines.push(`  ! ${w}`);
+
+  lines.push("");
+  lines.push("-- Loi applicable --");
+  lines.push(`Loi : ${a.applicableLaw.applicableLaw ?? "(à déterminer)"}`);
+  lines.push(`Base : ${a.applicableLaw.basis}`);
+  lines.push(`Universalité (art. 20) : ${a.applicableLaw.universalApplication ? "oui" : "non"}`);
+  lines.push(`Renvoi exclu (art. 32) : ${a.applicableLaw.renvoiExcluded ? "oui" : "non"}`);
+  for (const r of a.applicableLaw.reasoning) {
+    lines.push(`  • ${r.article}`);
+    lines.push(`    Règle : ${r.rule}`);
+    lines.push(`    Application : ${r.appliedTo}`);
+    lines.push(`    Conclusion : ${r.conclusion}`);
+  }
+  for (const w of a.applicableLaw.warnings) lines.push(`  ! ${w}`);
+
+  if (a.mpa) {
+    lines.push("");
+    lines.push("-- Convention matrimoniale (art. 25) --");
+    lines.push(
+      `Écrit daté signé : ${a.mpa.baselineSatisfied === null ? "non renseigné" : a.mpa.baselineSatisfied ? "oui" : "NON"}`,
+    );
+    if (a.mpa.candidateAdditionalLaws.length > 0) {
+      lines.push(
+        `Formalités nationales additionnelles à tester : ${a.mpa.candidateAdditionalLaws.join(", ")}`,
+      );
+    }
+    for (const w of a.mpa.warnings) lines.push(`  ! ${w}`);
+  }
+
+  if (a.choiceOfLawFormal) {
+    lines.push("");
+    lines.push("-- Convention de choix de loi (art. 23) --");
+    lines.push(
+      `Écrit daté signé : ${a.choiceOfLawFormal.baselineSatisfied === null ? "non renseigné" : a.choiceOfLawFormal.baselineSatisfied ? "oui" : "NON"}`,
+    );
+    if (a.choiceOfLawFormal.candidateAdditionalLaws.length > 0) {
+      lines.push(
+        `Formalités additionnelles : ${a.choiceOfLawFormal.candidateAdditionalLaws.join(", ")}`,
+      );
+    }
+    for (const w of a.choiceOfLawFormal.warnings) lines.push(`  ! ${w}`);
+  }
+
+  if (a.flags.length > 0) {
+    lines.push("");
+    lines.push("-- Points de vigilance --");
+    for (const f of a.flags) lines.push(`  ⚑ ${f}`);
+  }
+
+  return lines.join("\n");
+}
+
+async function runMatrimonial(args: string[]): Promise<number> {
+  const sub = args[0];
+  if (!sub || sub === "help") {
+    process.stdout.write(
+      "matrimonial analyze|article|articles|states\n",
+    );
+    return 0;
+  }
+  if (sub === "analyze") {
+    const input = await readMatrimonialCase(args.slice(1));
+    const analysis = analyseMatrimonial(input);
+    if (args.includes("--json-out")) {
+      process.stdout.write(JSON.stringify(analysis, null, 2) + "\n");
+    } else {
+      process.stdout.write(renderMatrimonial(analysis) + "\n");
+    }
+    return 0;
+  }
+  if (sub === "article") {
+    const id = args[1];
+    if (!id) throw new Error("Numéro d'article requis.");
+    const art = getMatrimonialArticle(id);
+    if (!art) {
+      process.stderr.write(`Article ${id} non trouvé.\n`);
+      return 1;
+    }
+    process.stdout.write(`${art.id} — ${art.title}\n${art.summary}\n`);
+    return 0;
+  }
+  if (sub === "articles") {
+    for (const art of listMatrimonialArticles()) {
+      process.stdout.write(`${art.id.padEnd(8)} ${art.title}\n`);
+    }
+    return 0;
+  }
+  if (sub === "states") {
+    process.stdout.write(listMatrimonialBoundStates().join(" ") + "\n");
+    return 0;
+  }
+  process.stderr.write(`Sous-commande matrimonial inconnue : ${sub}\n`);
+  return 2;
+}
+
 async function runConsultation(args: string[]): Promise<void> {
   const input = await readCase(args);
   const analysis = analyseSuccession(input);
@@ -215,6 +361,10 @@ async function main(): Promise<number> {
       process.stdout.write(`${r.country.padEnd(4)} ${r.source}\n`);
     }
     return 0;
+  }
+
+  if (cmd === "matrimonial") {
+    return runMatrimonial(args.slice(1));
   }
 
   if (cmd === "article") {
