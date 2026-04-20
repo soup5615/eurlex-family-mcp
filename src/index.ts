@@ -43,3 +43,29 @@ export {
   matrimonialRegulationStatus,
 } from "./matrimonial/memberStates.js";
 export type * as Matrimonial from "./matrimonial/types.js";
+export { analyseCombined } from "./matrimonial/combined.js";
+export {
+  renderMatrimonialHTML,
+  renderCombinedHTML,
+} from "./render/matrimonialHtml.js";
+
+// Regulation (EU) 2016/1104 (registered partnerships).
+export {
+  analysePartnership,
+  determinePartnershipJurisdiction,
+  determinePartnershipApplicableLaw,
+  analysePartnershipAgreementFormalValidity,
+  checkPartnershipTemporalScope,
+  checkPartnershipMaterialScope,
+} from "./partnerships/engine.js";
+export {
+  PARTNERSHIP_ARTICLES,
+  getPartnershipArticle,
+  listPartnershipArticles,
+} from "./partnerships/articles.js";
+export {
+  isPartnershipBoundState,
+  listPartnershipBoundStates,
+  partnershipRegulationStatus,
+} from "./partnerships/memberStates.js";
+export type * as Partnerships from "./partnerships/types.js";

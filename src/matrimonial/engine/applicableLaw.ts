@@ -64,6 +64,22 @@ export function determineMatrimonialApplicableLaw(
   // Art. 26(1)(a) — first common HR after marriage.
   const firstCommon = inferFirstCommonHRAfterMarriage(input);
   if (firstCommon) {
+    // Art. 26(2)-(3) — judicial exception at a spouse's request.
+    const exception = applyCloserConnectionException(input, firstCommon);
+    // Even when the exception is refused, its reasoning/warnings are
+    // propagated so the caller can see why.
+    warnings.push(...exception.warnings);
+    if (exception.country) {
+      reasoning.push(...exception.reasoning);
+      return {
+        applicableLaw: exception.country,
+        basis: "art-26-2-exception-last-common-hr",
+        universalApplication: true,
+        renvoiExcluded: true,
+        reasoning,
+        warnings,
+      };
+    }
     reasoning.push({
       article: "Art. 26(1)(a) Règl. (UE) 2016/1103",
       rule: "À défaut de choix, la loi applicable est celle de l'État de la première résidence habituelle commune des époux après la célébration du mariage.",
@@ -170,33 +186,92 @@ export function validateChoice(
 
 // Tries to infer the first common HR after the marriage from the
 // spouses' residence histories. Returns null if uncertain.
+//
+// The "first" common HR is the country in which both spouses lived
+// the earliest after the marriage. In our residence-history semantics,
+// `years` is the number of years ago the person LEFT that country;
+// the earliest past shared residence has the largest combined `years`.
+// The current shared HR (if any) scores zero and only wins if no
+// earlier shared country exists.
 export function inferFirstCommonHRAfterMarriage(
   input: MatrimonialCase,
 ): string | null {
   const [a, b] = input.spouses;
-  const hrA = normaliseCountry(a.habitualResidence);
-  const hrB = normaliseCountry(b.habitualResidence);
-
-  // Simple case: spouses currently share an HR. Assume it is the
-  // first common HR, unless one of them has a residence history
-  // preceding this one that was also common (which we cannot know
-  // without more data).
-  if (hrA === hrB) return hrA;
-
-  // Otherwise, look into the histories for a country that figures in
-  // both, with the LARGEST `years` (= earliest exit) present in both.
-  // Using our semantics, the larger `years` means the earlier the
-  // spouse left that country.
   const commonCountries = commonSharedCountries(a, b);
   if (commonCountries.length === 0) return null;
-  // Pick the one that appears with the largest combined years (earliest).
   const scored = commonCountries.map((c) => ({
     country: c,
-    score:
-      (getYears(a, c) ?? 0) + (getYears(b, c) ?? 0),
+    score: (getYears(a, c) ?? 0) + (getYears(b, c) ?? 0),
   }));
   scored.sort((x, y) => y.score - x.score);
   return scored[0]?.country ?? null;
+}
+
+interface ExceptionResult {
+  // Non-null when the exception is retained.
+  country: string | null;
+  reasoning: ReasoningStep[];
+  warnings: string[];
+}
+
+const NO_EX: ExceptionResult = { country: null, reasoning: [], warnings: [] };
+
+export function applyCloserConnectionException(
+  input: MatrimonialCase,
+  firstCommonHR: string,
+): ExceptionResult {
+  const ex = input.closerConnectionException;
+  if (!ex) return NO_EX;
+  const reasoning: ReasoningStep[] = [];
+  const warnings: string[] = [];
+  const other = normaliseCountry(ex.lastCommonHR);
+  if (other === firstCommonHR) return NO_EX;
+
+  // Art. 26(3): the exception does not apply where the spouses
+  // concluded a matrimonial property agreement prior to the
+  // establishment of their first common HR in another State.
+  if (input.mpa) {
+    const mpaDate = input.mpa.dateExecuted;
+    // Without a precise "date first common HR started" we fall back
+    // on a proxy: an MPA dated before the marriage or very close to
+    // it presumably predates the first common HR (assumed to follow
+    // the marriage).
+    const marriageDate = input.marriage.dateOfMarriage;
+    if (mpaDate <= marriageDate) {
+      warnings.push(
+        `Art. 26(3) : convention matrimoniale conclue avant/au moment du mariage (${mpaDate}) ; probablement antérieure à l'établissement de la première RH commune. Dans ce cas, l'exception de l'art. 26(2) est écartée.`,
+      );
+      return { country: null, reasoning, warnings };
+    }
+    warnings.push(
+      "Art. 26(3) : la présence d'une convention matrimoniale exige de vérifier si elle a été conclue avant la première RH commune ; si oui, l'exception est écartée.",
+    );
+  }
+
+  // The exception requires a significantly longer stay in the other
+  // State AND reliance by both spouses. We use a 2:1 ratio heuristic
+  // as a safe threshold; finer assessment is left to the court.
+  const significantlyLonger = ex.yearsInLastCommonHR >= 2 * ex.yearsInFirstCommonHR;
+  if (!significantlyLonger) {
+    warnings.push(
+      `Art. 26(2) : la durée de la dernière RH commune (${ex.yearsInLastCommonHR} ans) n'est pas manifestement supérieure à celle de la première (${ex.yearsInFirstCommonHR} ans) — exception non retenue.`,
+    );
+    return { country: null, reasoning, warnings };
+  }
+  if (!ex.bothSpousesRelied) {
+    warnings.push(
+      "Art. 26(2) : la réalité de la confiance des deux époux dans la loi de la dernière RH commune pour organiser leurs rapports patrimoniaux doit être démontrée ; non retenu ici.",
+    );
+    return { country: null, reasoning, warnings };
+  }
+
+  reasoning.push({
+    article: "Art. 26(2) Règl. (UE) 2016/1103",
+    rule: "À titre exceptionnel, à la demande d'un époux, la juridiction peut appliquer la loi de l'État dans lequel les époux ont eu leur dernière RH commune pendant une période significativement plus longue que la première, si les deux époux se sont fondés sur cette loi pour organiser leurs rapports patrimoniaux.",
+    appliedTo: `Demande de l'époux ${ex.requestedBySpouseId ?? "(non précisé)"} ; dernière RH commune en ${other} : ${ex.yearsInLastCommonHR} ans vs ${ex.yearsInFirstCommonHR} ans pour la première ; confiance établie.`,
+    conclusion: `Loi applicable : droit de ${other} (art. 26(2)).`,
+  });
+  return { country: other, reasoning, warnings };
 }
 
 function commonSharedCountries(a: Spouse, b: Spouse): string[] {

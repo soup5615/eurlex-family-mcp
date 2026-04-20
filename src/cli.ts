@@ -8,13 +8,25 @@ import { listBoundMemberStates } from "./data/memberStates.js";
 import { listThirdStateRules } from "./data/thirdStatePIL.js";
 import { renderConsultationHTML } from "./render/html.js";
 import { analyseMatrimonial } from "./matrimonial/engine/analyze.js";
+import { analyseCombined, type CombinedCase } from "./matrimonial/combined.js";
 import {
   getMatrimonialArticle,
   listMatrimonialArticles,
 } from "./matrimonial/articles.js";
 import { listMatrimonialBoundStates } from "./matrimonial/memberStates.js";
+import {
+  renderCombinedHTML,
+  renderMatrimonialHTML,
+} from "./render/matrimonialHtml.js";
+import { analysePartnership } from "./partnerships/engine.js";
+import {
+  getPartnershipArticle,
+  listPartnershipArticles,
+} from "./partnerships/articles.js";
+import { listPartnershipBoundStates } from "./partnerships/memberStates.js";
 import type { SuccessionCase, SuccessionAnalysis } from "./types.js";
 import type { MatrimonialCase, MatrimonialAnalysis } from "./matrimonial/types.js";
+import type { PartnershipCase } from "./partnerships/types.js";
 
 const USAGE = `eurlex-family — moteur de qualification du Règl. (UE) 650/2012
 
@@ -32,9 +44,20 @@ Commandes :
 
 Régimes matrimoniaux (Règl. UE 2016/1103) :
   matrimonial analyze [--file <case.json>] [--json-out]
+  matrimonial consultation [--file <case.json>] [--out <note.html>] [--title "..."]
   matrimonial article <numéro>
   matrimonial articles
   matrimonial states
+
+Partenariats enregistrés (Règl. UE 2016/1104) :
+  partnership analyze [--file <case.json>] [--json-out]
+  partnership article <numéro>
+  partnership articles
+  partnership states
+
+Analyse combinée succession + régime matrimonial (décès d'un conjoint) :
+  combined analyze [--file <case.json>] [--json-out]
+  combined consultation [--file <case.json>] [--out <note.html>] [--title "..."]
 
   help                           Affiche cette aide.
 
@@ -292,6 +315,26 @@ async function runMatrimonial(args: string[]): Promise<number> {
     }
     return 0;
   }
+  if (sub === "consultation") {
+    const input = await readMatrimonialCase(args.slice(1));
+    const analysis = analyseMatrimonial(input);
+    const titleIdx = args.indexOf("--title");
+    const title = titleIdx >= 0 ? args[titleIdx + 1] : undefined;
+    const html = renderMatrimonialHTML(
+      analysis,
+      title ? { title } : {},
+    );
+    const outIdx = args.indexOf("--out");
+    if (outIdx >= 0) {
+      const path = args[outIdx + 1];
+      if (!path) throw new Error("--out attend un chemin.");
+      writeFileSync(path, html, "utf8");
+      process.stderr.write(`Note écrite : ${path}\n`);
+    } else {
+      process.stdout.write(html);
+    }
+    return 0;
+  }
   if (sub === "article") {
     const id = args[1];
     if (!id) throw new Error("Numéro d'article requis.");
@@ -314,6 +357,111 @@ async function runMatrimonial(args: string[]): Promise<number> {
     return 0;
   }
   process.stderr.write(`Sous-commande matrimonial inconnue : ${sub}\n`);
+  return 2;
+}
+
+async function readPartnershipCase(args: string[]): Promise<PartnershipCase> {
+  let raw: string;
+  const fileFlag = args.indexOf("--file");
+  if (fileFlag >= 0) {
+    const path = args[fileFlag + 1];
+    if (!path) throw new Error("--file attend un chemin.");
+    raw = readFileSync(path, "utf8");
+  } else {
+    raw = await readStdin();
+  }
+  if (!raw.trim()) {
+    throw new Error("Aucun cas fourni (stdin ou --file).");
+  }
+  return JSON.parse(raw) as PartnershipCase;
+}
+
+async function runPartnership(args: string[]): Promise<number> {
+  const sub = args[0];
+  if (!sub || sub === "help") {
+    process.stdout.write("partnership analyze|article|articles|states\n");
+    return 0;
+  }
+  if (sub === "analyze") {
+    const input = await readPartnershipCase(args.slice(1));
+    const analysis = analysePartnership(input);
+    process.stdout.write(JSON.stringify(analysis, null, 2) + "\n");
+    return 0;
+  }
+  if (sub === "article") {
+    const id = args[1];
+    if (!id) throw new Error("Numéro d'article requis.");
+    const art = getPartnershipArticle(id);
+    if (!art) {
+      process.stderr.write(`Article ${id} non trouvé.\n`);
+      return 1;
+    }
+    process.stdout.write(`${art.id} — ${art.title}\n${art.summary}\n`);
+    return 0;
+  }
+  if (sub === "articles") {
+    for (const art of listPartnershipArticles()) {
+      process.stdout.write(`${art.id.padEnd(8)} ${art.title}\n`);
+    }
+    return 0;
+  }
+  if (sub === "states") {
+    process.stdout.write(listPartnershipBoundStates().join(" ") + "\n");
+    return 0;
+  }
+  process.stderr.write(`Sous-commande partnership inconnue : ${sub}\n`);
+  return 2;
+}
+
+async function readCombinedCase(args: string[]): Promise<CombinedCase> {
+  let raw: string;
+  const fileFlag = args.indexOf("--file");
+  if (fileFlag >= 0) {
+    const path = args[fileFlag + 1];
+    if (!path) throw new Error("--file attend un chemin.");
+    raw = readFileSync(path, "utf8");
+  } else {
+    raw = await readStdin();
+  }
+  if (!raw.trim()) {
+    throw new Error("Aucun cas fourni (stdin ou --file).");
+  }
+  return JSON.parse(raw) as CombinedCase;
+}
+
+async function runCombined(args: string[]): Promise<number> {
+  const sub = args[0];
+  if (!sub || sub === "help") {
+    process.stdout.write("combined analyze|consultation\n");
+    return 0;
+  }
+  if (sub === "analyze") {
+    const input = await readCombinedCase(args.slice(1));
+    const analysis = analyseCombined(input);
+    process.stdout.write(JSON.stringify(analysis, null, 2) + "\n");
+    return 0;
+  }
+  if (sub === "consultation") {
+    const input = await readCombinedCase(args.slice(1));
+    const analysis = analyseCombined(input);
+    const titleIdx = args.indexOf("--title");
+    const title = titleIdx >= 0 ? args[titleIdx + 1] : undefined;
+    const html = renderCombinedHTML(
+      analysis,
+      title ? { title } : {},
+    );
+    const outIdx = args.indexOf("--out");
+    if (outIdx >= 0) {
+      const path = args[outIdx + 1];
+      if (!path) throw new Error("--out attend un chemin.");
+      writeFileSync(path, html, "utf8");
+      process.stderr.write(`Note écrite : ${path}\n`);
+    } else {
+      process.stdout.write(html);
+    }
+    return 0;
+  }
+  process.stderr.write(`Sous-commande combined inconnue : ${sub}\n`);
   return 2;
 }
 
@@ -365,6 +513,14 @@ async function main(): Promise<number> {
 
   if (cmd === "matrimonial") {
     return runMatrimonial(args.slice(1));
+  }
+
+  if (cmd === "partnership") {
+    return runPartnership(args.slice(1));
+  }
+
+  if (cmd === "combined") {
+    return runCombined(args.slice(1));
   }
 
   if (cmd === "article") {

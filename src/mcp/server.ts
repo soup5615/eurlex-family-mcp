@@ -18,6 +18,7 @@ import { renderConsultationHTML } from "../render/html.js";
 import { analyseMatrimonial } from "../matrimonial/engine/analyze.js";
 import { determineMatrimonialJurisdiction } from "../matrimonial/engine/jurisdiction.js";
 import { determineMatrimonialApplicableLaw } from "../matrimonial/engine/applicableLaw.js";
+import { analyseCombined, type CombinedCase } from "../matrimonial/combined.js";
 import {
   getMatrimonialArticle,
   listMatrimonialArticles,
@@ -26,8 +27,19 @@ import {
   listMatrimonialBoundStates,
   matrimonialRegulationStatus,
 } from "../matrimonial/memberStates.js";
+import {
+  renderCombinedHTML,
+  renderMatrimonialHTML,
+} from "../render/matrimonialHtml.js";
+import { analysePartnership } from "../partnerships/engine.js";
+import {
+  getPartnershipArticle,
+  listPartnershipArticles,
+} from "../partnerships/articles.js";
+import { listPartnershipBoundStates } from "../partnerships/memberStates.js";
 import type { Disposition, SuccessionCase } from "../types.js";
 import type { MatrimonialCase } from "../matrimonial/types.js";
+import type { PartnershipCase } from "../partnerships/types.js";
 
 const CountryCode = z
   .string()
@@ -377,6 +389,15 @@ export function buildServer(): McpServer {
         }),
       )
       .optional(),
+    closerConnectionException: z
+      .object({
+        requestedBySpouseId: z.string().optional(),
+        lastCommonHR: CountryCode,
+        yearsInFirstCommonHR: z.number().nonnegative(),
+        yearsInLastCommonHR: z.number().nonnegative(),
+        bothSpousesRelied: z.boolean(),
+      })
+      .optional(),
   };
 
   server.registerTool(
@@ -466,6 +487,248 @@ export function buildServer(): McpServer {
         status: matrimonialRegulationStatus(country),
       });
     },
+  );
+
+  server.registerTool(
+    "matrimonial_consultation_html",
+    {
+      title: "Générer une note de consultation matrimoniale (HTML)",
+      description:
+        "Produit une note de consultation HTML pour un régime matrimonial.",
+      inputSchema: {
+        case: z.object(MatrimonialCaseShape),
+        title: z.string().optional(),
+      },
+    },
+    async ({ case: c, title }) => {
+      const analysis = analyseMatrimonial(c as MatrimonialCase);
+      return {
+        content: [
+          {
+            type: "text",
+            text: renderMatrimonialHTML(
+              analysis,
+              title ? { title } : {},
+            ),
+          },
+        ],
+      };
+    },
+  );
+
+  // -----------------------------------------------------------------
+  // Combined analyser: succession + matrimonial (art. 4 concentration)
+  // -----------------------------------------------------------------
+
+  server.registerTool(
+    "analyze_combined_succession_matrimonial",
+    {
+      title: "Analyse combinée succession + régime matrimonial",
+      description:
+        "Orchestration Mahnkopf : analyse la succession sous le Règl. 650/2012 et le régime matrimonial sous le Règl. 2016/1103, en appliquant la concentration de l'art. 4 devant le juge successoral.",
+      inputSchema: {
+        succession: z.object(SuccessionCaseShape),
+        marriage: Marriage,
+        survivingSpouse: Spouse,
+        choiceOfLaw: MatrimonialChoiceOfLaw.optional(),
+        mpa: MpaSchema.optional(),
+        closerConnectionException: z
+          .object({
+            requestedBySpouseId: z.string().optional(),
+            lastCommonHR: CountryCode,
+            yearsInFirstCommonHR: z.number().nonnegative(),
+            yearsInLastCommonHR: z.number().nonnegative(),
+            bothSpousesRelied: z.boolean(),
+          })
+          .optional(),
+        jurisdictionAssets: z
+          .array(
+            z.object({
+              locatedIn: CountryCode,
+              kind: z.enum(["movable", "immovable"]),
+            }),
+          )
+          .optional(),
+      },
+    },
+    async (input) => asText(analyseCombined(input as CombinedCase)),
+  );
+
+  server.registerTool(
+    "combined_consultation_html",
+    {
+      title: "Note de consultation combinée (HTML)",
+      description:
+        "Produit une note HTML exposant les volets succession et régime matrimonial d'un décès de conjoint.",
+      inputSchema: {
+        succession: z.object(SuccessionCaseShape),
+        marriage: Marriage,
+        survivingSpouse: Spouse,
+        choiceOfLaw: MatrimonialChoiceOfLaw.optional(),
+        mpa: MpaSchema.optional(),
+        closerConnectionException: z
+          .object({
+            requestedBySpouseId: z.string().optional(),
+            lastCommonHR: CountryCode,
+            yearsInFirstCommonHR: z.number().nonnegative(),
+            yearsInLastCommonHR: z.number().nonnegative(),
+            bothSpousesRelied: z.boolean(),
+          })
+          .optional(),
+        jurisdictionAssets: z
+          .array(
+            z.object({
+              locatedIn: CountryCode,
+              kind: z.enum(["movable", "immovable"]),
+            }),
+          )
+          .optional(),
+        title: z.string().optional(),
+      },
+    },
+    async ({ title, ...rest }) => {
+      const analysis = analyseCombined(rest as CombinedCase);
+      return {
+        content: [
+          {
+            type: "text",
+            text: renderCombinedHTML(
+              analysis,
+              title ? { title } : {},
+            ),
+          },
+        ],
+      };
+    },
+  );
+
+  // -----------------------------------------------------------------
+  // Partnerships (Regulation (EU) 2016/1104)
+  // -----------------------------------------------------------------
+
+  const Partner = z.object({
+    id: z.string(),
+    nationalities: z.array(CountryCode),
+    habitualResidence: CountryCode,
+    residenceHistory: z.array(ResidencePeriod).optional(),
+  });
+
+  const Partnership = z.object({
+    dateOfRegistration: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    stateOfCreation: CountryCode,
+    placeOfRegistration: CountryCode.optional(),
+  });
+
+  const PartnershipChoiceOfLaw = z.object({
+    chosenLaw: CountryCode,
+    form: z.enum(["express-writing", "implicit-from-agreement"]),
+    dateOfChoice: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    retroactive: z.boolean().optional(),
+    inWritingDatedSigned: z.boolean().optional(),
+    hrAtChoice: z
+      .array(z.object({ partnerId: z.string(), country: CountryCode }))
+      .optional(),
+  });
+
+  const PartnershipAgreementSchema = z.object({
+    dateExecuted: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    kind: z.enum([
+      "separation-of-property",
+      "community-of-property",
+      "participation-in-acquisitions",
+      "other",
+      "none",
+    ]),
+    placeOfExecution: CountryCode.optional(),
+    inWritingDatedSigned: z.boolean().optional(),
+  });
+
+  const PartnershipContext = z.object({
+    deathOfPartner: z
+      .object({
+        partnerId: z.string(),
+        forumSeisedForSuccession: CountryCode.optional(),
+      })
+      .optional(),
+    dissolution: z
+      .object({ forumSeisedForDissolution: CountryCode.optional() })
+      .optional(),
+    forumState: CountryCode.optional(),
+    choiceOfCourt: z
+      .object({
+        mostRecentState: CountryCode,
+        inWritingDatedSigned: z.boolean(),
+      })
+      .optional(),
+  });
+
+  const PartnershipCaseShape = {
+    partners: z.tuple([Partner, Partner]),
+    partnership: Partnership,
+    choiceOfLaw: PartnershipChoiceOfLaw.optional(),
+    agreement: PartnershipAgreementSchema.optional(),
+    context: PartnershipContext,
+    jurisdictionAssets: z
+      .array(
+        z.object({
+          locatedIn: CountryCode,
+          kind: z.enum(["movable", "immovable"]),
+        }),
+      )
+      .optional(),
+    closerConnectionException: z
+      .object({
+        requestedByPartnerId: z.string().optional(),
+        otherState: CountryCode,
+        bothPartnersRelied: z.boolean(),
+      })
+      .optional(),
+  };
+
+  server.registerTool(
+    "analyze_partnership_regime",
+    {
+      title: "Analyser un partenariat enregistré (Règl. UE 2016/1104)",
+      description:
+        "Analyse complète du régime patrimonial d'un partenariat enregistré : champ temporel, juridiction (art. 4-11), loi applicable (art. 22 choix / art. 26(1) État de création / art. 26(2) exception), validité formelle de la convention (art. 25).",
+      inputSchema: PartnershipCaseShape,
+    },
+    async (input) => asText(analysePartnership(input as PartnershipCase)),
+  );
+
+  server.registerTool(
+    "get_partnership_article",
+    {
+      title: "Résumé d'un article du Règl. 2016/1104",
+      description: "Renvoie le résumé d'un article du règlement partenariats.",
+      inputSchema: { articleNumber: z.string() },
+    },
+    async ({ articleNumber }) => {
+      const a = getPartnershipArticle(articleNumber);
+      if (!a) return asText({ error: `Article ${articleNumber} non trouvé.` });
+      return asText(a);
+    },
+  );
+
+  server.registerTool(
+    "list_partnership_articles",
+    {
+      title: "Liste des articles du Règl. 2016/1104 référencés",
+      description: "Liste les articles couverts par le moteur partenariats.",
+      inputSchema: {},
+    },
+    async () => asText(listPartnershipArticles()),
+  );
+
+  server.registerTool(
+    "list_partnership_member_states",
+    {
+      title: "États liés par le Règl. 2016/1104",
+      description:
+        "Liste les 18 États membres participants à la coopération renforcée sur les partenariats.",
+      inputSchema: {},
+    },
+    async () => asText(listPartnershipBoundStates()),
   );
 
   return server;

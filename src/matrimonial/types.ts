@@ -162,6 +162,18 @@ export interface MatrimonialCase {
   // The forum MS the user wants us to reason about (for art. 10).
   // Optional, defaults to forum handling the main proceedings.
   jurisdictionAssets?: { locatedIn: CountryCode; kind: "movable" | "immovable" }[];
+  // Art. 26(2) exception input. The exception can only be invoked by a
+  // spouse before the court and requires proving (i) a last common HR
+  // significantly longer than the first, and (ii) that both spouses
+  // relied on that law. Art. 26(3) blocks it if an MPA was concluded
+  // before the first common HR was established.
+  closerConnectionException?: {
+    requestedBySpouseId?: string;
+    lastCommonHR: CountryCode;
+    yearsInFirstCommonHR: number;
+    yearsInLastCommonHR: number;
+    bothSpousesRelied: boolean;
+  };
 }
 
 export interface MatrimonialTemporalScope {
