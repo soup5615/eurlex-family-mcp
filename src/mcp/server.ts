@@ -37,9 +37,30 @@ import {
   listPartnershipArticles,
 } from "../partnerships/articles.js";
 import { listPartnershipBoundStates } from "../partnerships/memberStates.js";
+import { analyseRome3 } from "../divorce/engine.js";
+import {
+  getRome3Article,
+  listRome3Articles,
+} from "../divorce/articles.js";
+import { listRome3BoundStates } from "../divorce/memberStates.js";
+import {
+  analyseBiiMatrimonial,
+  analyseBiiParental,
+} from "../brussels2/engine.js";
+import {
+  getBiiArticle,
+  listBiiArticles,
+} from "../brussels2/articles.js";
+import { listBiiBoundStates } from "../brussels2/memberStates.js";
+import { analyseCrisis, type CrisisCase } from "../brussels2/crisis.js";
 import type { Disposition, SuccessionCase } from "../types.js";
 import type { MatrimonialCase } from "../matrimonial/types.js";
 import type { PartnershipCase } from "../partnerships/types.js";
+import type { DivorceCase } from "../divorce/types.js";
+import type {
+  BiiMatrimonialCase,
+  BiiParentalResponsibilityCase,
+} from "../brussels2/types.js";
 
 const CountryCode = z
   .string()
@@ -729,6 +750,216 @@ export function buildServer(): McpServer {
       inputSchema: {},
     },
     async () => asText(listPartnershipBoundStates()),
+  );
+
+  // -----------------------------------------------------------------
+  // Brique 3 — Rome III (1259/2010) and Brussels IIter (2019/1111)
+  // -----------------------------------------------------------------
+
+  const DivorceSpouse = z.object({
+    id: z.string(),
+    nationalities: z.array(CountryCode),
+    habitualResidence: CountryCode,
+  });
+
+  const Rome3ChoiceOfLawSchema = z.object({
+    chosenLaw: CountryCode,
+    dateOfChoice: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    inWritingDatedSigned: z.boolean().optional(),
+    hrAtChoice: z
+      .array(z.object({ spouseId: z.string(), country: CountryCode }))
+      .optional(),
+  });
+
+  const DivorceCaseShape = {
+    spouses: z.tuple([DivorceSpouse, DivorceSpouse]),
+    proceeding: z.enum(["divorce", "legal-separation"]),
+    forumState: CountryCode,
+    dateCourtSeised: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    choiceOfLaw: Rome3ChoiceOfLawSchema.optional(),
+    lastCommonHR: z
+      .object({
+        country: CountryCode,
+        yearsSinceLeft: z.number().nonnegative(),
+      })
+      .optional(),
+    designatedLawDoesNotAllowDivorce: z.boolean().optional(),
+    conversionFromSeparation: z
+      .object({ lawThatGovernedSeparation: CountryCode })
+      .optional(),
+  };
+
+  server.registerTool(
+    "analyze_rome3_divorce",
+    {
+      title: "Analyser la loi applicable au divorce (Rome III)",
+      description:
+        "Analyse Règl. (UE) 1259/2010 : champ temporel/matériel, art. 5 choix de loi, art. 8 cascade par défaut, art. 9 conversion, art. 10 repli lex fori, art. 11 exclusion du renvoi.",
+      inputSchema: DivorceCaseShape,
+    },
+    async (input) => asText(analyseRome3(input as DivorceCase)),
+  );
+
+  server.registerTool(
+    "get_rome3_article",
+    {
+      title: "Résumé d'un article de Rome III",
+      description: "Renvoie le résumé d'un article du règlement Rome III.",
+      inputSchema: { articleNumber: z.string() },
+    },
+    async ({ articleNumber }) => {
+      const a = getRome3Article(articleNumber);
+      if (!a) return asText({ error: `Article ${articleNumber} non trouvé.` });
+      return asText(a);
+    },
+  );
+
+  server.registerTool(
+    "list_rome3_articles",
+    {
+      title: "Liste des articles Rome III référencés",
+      description: "Liste les articles couverts par le moteur Rome III.",
+      inputSchema: {},
+    },
+    async () => asText(listRome3Articles()),
+  );
+
+  server.registerTool(
+    "list_rome3_member_states",
+    {
+      title: "États participants à Rome III",
+      description:
+        "Liste les 17 États membres participants à la coopération renforcée Rome III.",
+      inputSchema: {},
+    },
+    async () => asText(listRome3BoundStates()),
+  );
+
+  const BiiSpouse = z.object({
+    id: z.string(),
+    nationalities: z.array(CountryCode),
+    habitualResidence: CountryCode,
+    monthsInHabitualResidence: z.number().nonnegative().optional(),
+  });
+
+  const BiiMatrimonialCaseShape = {
+    spouses: z.tuple([BiiSpouse, BiiSpouse]),
+    proceeding: z.enum(["divorce", "legal-separation", "annulment"]),
+    dateCourtSeised: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    forumState: CountryCode,
+    jointApplication: z.boolean().optional(),
+    applicantId: z.string().optional(),
+  };
+
+  server.registerTool(
+    "analyze_bii_matrimonial_jurisdiction",
+    {
+      title: "Compétence matière matrimoniale (Bruxelles II ter, art. 3)",
+      description:
+        "Teste la compétence d'un for d'État membre au titre des art. 3 à 6 du Règl. (UE) 2019/1111.",
+      inputSchema: BiiMatrimonialCaseShape,
+    },
+    async (input) => asText(analyseBiiMatrimonial(input as BiiMatrimonialCase)),
+  );
+
+  const BiiChild = z.object({
+    id: z.string(),
+    habitualResidence: CountryCode,
+    monthsInHabitualResidence: z.number().nonnegative().optional(),
+  });
+
+  const BiiParentalShape = {
+    child: BiiChild,
+    matrimonialProceedingsIn: CountryCode.optional(),
+    formerHabitualResidence: CountryCode.optional(),
+    monthsSinceMoveFromFormer: z.number().nonnegative().optional(),
+    prorogation: z
+      .object({
+        chosenForum: CountryCode,
+        allPartiesAccepted: z.boolean(),
+        substantialConnection: z.boolean(),
+      })
+      .optional(),
+    unlawfulRemoval: z
+      .object({
+        fromState: CountryCode,
+        toState: CountryCode,
+        dateOfRemoval: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      })
+      .optional(),
+    forumState: CountryCode,
+    dateCourtSeised: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  };
+
+  server.registerTool(
+    "analyze_bii_parental_jurisdiction",
+    {
+      title: "Compétence responsabilité parentale (Bruxelles II ter, art. 7-12)",
+      description:
+        "Teste la compétence d'un for en matière de responsabilité parentale.",
+      inputSchema: BiiParentalShape,
+    },
+    async (input) =>
+      asText(analyseBiiParental(input as BiiParentalResponsibilityCase)),
+  );
+
+  server.registerTool(
+    "get_bii_article",
+    {
+      title: "Résumé d'un article de Bruxelles II ter",
+      description: "Renvoie le résumé d'un article du Règl. 2019/1111.",
+      inputSchema: { articleNumber: z.string() },
+    },
+    async ({ articleNumber }) => {
+      const a = getBiiArticle(articleNumber);
+      if (!a) return asText({ error: `Article ${articleNumber} non trouvé.` });
+      return asText(a);
+    },
+  );
+
+  server.registerTool(
+    "list_bii_articles",
+    {
+      title: "Liste des articles de Bruxelles II ter référencés",
+      description: "Liste les articles couverts par le moteur Bruxelles II ter.",
+      inputSchema: {},
+    },
+    async () => asText(listBiiArticles()),
+  );
+
+  server.registerTool(
+    "list_bii_member_states",
+    {
+      title: "États liés par Bruxelles II ter",
+      description:
+        "Liste les 26 États membres liés par le Règl. 2019/1111 (tous sauf Danemark).",
+      inputSchema: {},
+    },
+    async () => asText(listBiiBoundStates()),
+  );
+
+  server.registerTool(
+    "analyze_matrimonial_crisis",
+    {
+      title: "Analyse combinée crise conjugale",
+      description:
+        "Orchestration Bruxelles II ter (compétence) + Rome III (loi divorce) + Règl. 2016/1103 (régime matrimonial), avec responsabilité parentale optionnelle.",
+      inputSchema: {
+        divorce: z.object(DivorceCaseShape),
+        matrimonial: z.object({
+          ...MatrimonialCaseShape,
+          context: MatrimonialContext.optional(),
+        }),
+        bii: z
+          .object({
+            jointApplication: z.boolean().optional(),
+            applicantId: z.string().optional(),
+          })
+          .optional(),
+        parentalResponsibility: z.object(BiiParentalShape).optional(),
+      },
+    },
+    async (input) => asText(analyseCrisis(input as CrisisCase)),
   );
 
   return server;

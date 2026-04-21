@@ -69,3 +69,43 @@ export {
   partnershipRegulationStatus,
 } from "./partnerships/memberStates.js";
 export type * as Partnerships from "./partnerships/types.js";
+
+// Brique 3 — Rome III (1259/2010) and Brussels IIter (2019/1111).
+export {
+  analyseRome3,
+  determineRome3ApplicableLaw,
+  analyseRome3ChoiceFormalValidity,
+  checkRome3TemporalScope,
+  checkRome3MaterialScope,
+} from "./divorce/engine.js";
+export {
+  ROME3_ARTICLES,
+  getRome3Article,
+  listRome3Articles,
+} from "./divorce/articles.js";
+export {
+  isRome3BoundState,
+  listRome3BoundStates,
+  rome3Status,
+} from "./divorce/memberStates.js";
+export type * as Rome3 from "./divorce/types.js";
+
+export {
+  analyseBiiMatrimonial,
+  analyseBiiParental,
+  determineBiiMatrimonialJurisdiction,
+  determineBiiParentalJurisdiction,
+  checkBiiTemporalScope,
+} from "./brussels2/engine.js";
+export {
+  BII_ARTICLES,
+  getBiiArticle,
+  listBiiArticles,
+} from "./brussels2/articles.js";
+export {
+  biiStatus,
+  isBiiBoundState,
+  listBiiBoundStates,
+} from "./brussels2/memberStates.js";
+export { analyseCrisis } from "./brussels2/crisis.js";
+export type * as Brussels2 from "./brussels2/types.js";

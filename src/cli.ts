@@ -24,9 +24,24 @@ import {
   listPartnershipArticles,
 } from "./partnerships/articles.js";
 import { listPartnershipBoundStates } from "./partnerships/memberStates.js";
+import { analyseRome3 } from "./divorce/engine.js";
+import { getRome3Article, listRome3Articles } from "./divorce/articles.js";
+import { listRome3BoundStates } from "./divorce/memberStates.js";
+import {
+  analyseBiiMatrimonial,
+  analyseBiiParental,
+} from "./brussels2/engine.js";
+import { getBiiArticle, listBiiArticles } from "./brussels2/articles.js";
+import { listBiiBoundStates } from "./brussels2/memberStates.js";
+import { analyseCrisis, type CrisisCase } from "./brussels2/crisis.js";
 import type { SuccessionCase, SuccessionAnalysis } from "./types.js";
 import type { MatrimonialCase, MatrimonialAnalysis } from "./matrimonial/types.js";
 import type { PartnershipCase } from "./partnerships/types.js";
+import type { DivorceCase } from "./divorce/types.js";
+import type {
+  BiiMatrimonialCase,
+  BiiParentalResponsibilityCase,
+} from "./brussels2/types.js";
 
 const USAGE = `eurlex-family — moteur de qualification du Règl. (UE) 650/2012
 
@@ -58,6 +73,22 @@ Partenariats enregistrés (Règl. UE 2016/1104) :
 Analyse combinée succession + régime matrimonial (décès d'un conjoint) :
   combined analyze [--file <case.json>] [--json-out]
   combined consultation [--file <case.json>] [--out <note.html>] [--title "..."]
+
+Divorce — loi applicable (Rome III, Règl. UE 1259/2010) :
+  divorce analyze [--file <case.json>]
+  divorce article <numéro>
+  divorce articles
+  divorce states
+
+Matières matrimoniales et responsabilité parentale (Bruxelles II ter, Règl. UE 2019/1111) :
+  bii matrimonial [--file <case.json>]
+  bii parental [--file <case.json>]
+  bii article <numéro>
+  bii articles
+  bii states
+
+Analyse combinée crise conjugale (compétence + loi divorce + régime + parental) :
+  crisis analyze [--file <case.json>]
 
   help                           Affiche cette aide.
 
@@ -465,6 +496,116 @@ async function runCombined(args: string[]): Promise<number> {
   return 2;
 }
 
+async function readJson<T>(args: string[]): Promise<T> {
+  let raw: string;
+  const fileFlag = args.indexOf("--file");
+  if (fileFlag >= 0) {
+    const path = args[fileFlag + 1];
+    if (!path) throw new Error("--file attend un chemin.");
+    raw = readFileSync(path, "utf8");
+  } else {
+    raw = await readStdin();
+  }
+  if (!raw.trim()) throw new Error("Aucun cas fourni (stdin ou --file).");
+  return JSON.parse(raw) as T;
+}
+
+async function runDivorce(args: string[]): Promise<number> {
+  const sub = args[0];
+  if (!sub || sub === "help") {
+    process.stdout.write("divorce analyze|article|articles|states\n");
+    return 0;
+  }
+  if (sub === "analyze") {
+    const input = await readJson<DivorceCase>(args.slice(1));
+    process.stdout.write(JSON.stringify(analyseRome3(input), null, 2) + "\n");
+    return 0;
+  }
+  if (sub === "article") {
+    const id = args[1];
+    if (!id) throw new Error("Numéro d'article requis.");
+    const art = getRome3Article(id);
+    if (!art) {
+      process.stderr.write(`Article ${id} non trouvé.\n`);
+      return 1;
+    }
+    process.stdout.write(`${art.id} — ${art.title}\n${art.summary}\n`);
+    return 0;
+  }
+  if (sub === "articles") {
+    for (const art of listRome3Articles()) {
+      process.stdout.write(`${art.id.padEnd(8)} ${art.title}\n`);
+    }
+    return 0;
+  }
+  if (sub === "states") {
+    process.stdout.write(listRome3BoundStates().join(" ") + "\n");
+    return 0;
+  }
+  process.stderr.write(`Sous-commande divorce inconnue : ${sub}\n`);
+  return 2;
+}
+
+async function runBii(args: string[]): Promise<number> {
+  const sub = args[0];
+  if (!sub || sub === "help") {
+    process.stdout.write("bii matrimonial|parental|article|articles|states\n");
+    return 0;
+  }
+  if (sub === "matrimonial") {
+    const input = await readJson<BiiMatrimonialCase>(args.slice(1));
+    process.stdout.write(
+      JSON.stringify(analyseBiiMatrimonial(input), null, 2) + "\n",
+    );
+    return 0;
+  }
+  if (sub === "parental") {
+    const input = await readJson<BiiParentalResponsibilityCase>(args.slice(1));
+    process.stdout.write(
+      JSON.stringify(analyseBiiParental(input), null, 2) + "\n",
+    );
+    return 0;
+  }
+  if (sub === "article") {
+    const id = args[1];
+    if (!id) throw new Error("Numéro d'article requis.");
+    const art = getBiiArticle(id);
+    if (!art) {
+      process.stderr.write(`Article ${id} non trouvé.\n`);
+      return 1;
+    }
+    process.stdout.write(`${art.id} — ${art.title}\n${art.summary}\n`);
+    return 0;
+  }
+  if (sub === "articles") {
+    for (const art of listBiiArticles()) {
+      process.stdout.write(`${art.id.padEnd(8)} ${art.title}\n`);
+    }
+    return 0;
+  }
+  if (sub === "states") {
+    process.stdout.write(listBiiBoundStates().join(" ") + "\n");
+    return 0;
+  }
+  process.stderr.write(`Sous-commande bii inconnue : ${sub}\n`);
+  return 2;
+}
+
+async function runCrisis(args: string[]): Promise<number> {
+  const sub = args[0];
+  if (!sub || sub === "help") {
+    process.stdout.write("crisis analyze\n");
+    return 0;
+  }
+  if (sub === "analyze") {
+    const input = await readJson<CrisisCase>(args.slice(1));
+    process.stdout.write(JSON.stringify(analyseCrisis(input), null, 2) + "\n");
+    return 0;
+  }
+  process.stderr.write(`Sous-commande crisis inconnue : ${sub}\n`);
+  return 2;
+}
+
 async function runConsultation(args: string[]): Promise<void> {
   const input = await readCase(args);
   const analysis = analyseSuccession(input);
@@ -521,6 +662,18 @@ async function main(): Promise<number> {
 
   if (cmd === "combined") {
     return runCombined(args.slice(1));
+  }
+
+  if (cmd === "divorce") {
+    return runDivorce(args.slice(1));
+  }
+
+  if (cmd === "bii") {
+    return runBii(args.slice(1));
+  }
+
+  if (cmd === "crisis") {
+    return runCrisis(args.slice(1));
   }
 
   if (cmd === "article") {
