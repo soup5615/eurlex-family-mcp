@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>eurlex-family — moteur DIP de la famille UE</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>eurlex-family</h1>
+    <p class="tagline">Moteur d'analyse du droit international privé de la famille (UE)</p>
+  </header>
+
+  <nav class="tabs" id="tabs"></nav>
+
+  <main class="app-main">
+    <section class="panel panel-input">
+      <div class="panel-header">
+        <h2 id="input-title">Saisie du cas</h2>
+        <div class="panel-actions">
+          <button id="btn-reset" type="button" class="btn">Réinitialiser</button>
+          <button id="btn-analyze" type="button" class="btn btn-primary">Analyser</button>
+        </div>
+      </div>
+      <form id="case-form" class="form"></form>
+    </section>
+
+    <section class="panel panel-output">
+      <div class="panel-header">
+        <h2>Résultat</h2>
+        <div class="panel-actions">
+          <button id="btn-consult" type="button" class="btn" disabled>Note HTML</button>
+          <button id="btn-save" type="button" class="btn" disabled>Enregistrer…</button>
+        </div>
+      </div>
+      <div id="result" class="result"><p class="muted">Renseignez un cas puis cliquez sur « Analyser ».</p></div>
+    </section>
+
+    <aside class="panel panel-library">
+      <div class="panel-header">
+        <h2>Bibliothèque</h2>
+        <input id="library-search" type="search" placeholder="Rechercher…">
+      </div>
+      <ul id="library" class="library"></ul>
+    </aside>
+  </main>
+
+  <dialog id="save-dialog">
+    <form method="dialog" id="save-form">
+      <h3>Enregistrer le cas</h3>
+      <label>Titre <input name="title" required></label>
+      <label>Notes <textarea name="notes" rows="3"></textarea></label>
+      <label>Tags (séparés par des virgules) <input name="tags"></label>
+      <menu>
+        <button value="cancel" type="button" class="btn" id="save-cancel">Annuler</button>
+        <button value="save" type="submit" class="btn btn-primary">Enregistrer</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <footer class="app-footer">
+    <small>
+      Règl. 650/2012 (successions), 2016/1103 (régimes matrimoniaux), 2016/1104 (partenariats),
+      1259/2010 (Rome III, divorce), 2019/1111 (Bruxelles II ter). Outil d'aide à la décision —
+      ne se substitue pas à un professionnel du droit.
+    </small>
+  </footer>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

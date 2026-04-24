@@ -6,13 +6,15 @@
   "main": "dist/index.js",
   "bin": {
     "eurlex-family": "dist/cli.js",
-    "eurlex-family-mcp": "dist/mcp/server.js"
+    "eurlex-family-mcp": "dist/mcp/server.js",
+    "eurlex-family-web": "dist/server/cli.js"
   },
   "files": ["dist", "README"],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"require('node:fs').cpSync('src/web','dist/web',{recursive:true})\"",
     "dev": "tsx src/cli.ts",
     "mcp": "tsx src/mcp/server.ts",
+    "web": "tsx src/server/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
