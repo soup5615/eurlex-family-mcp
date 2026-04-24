@@ -19,6 +19,7 @@ export type CaseKind =
 
 export interface SavedCaseMeta {
   id: string;
+  ownerId: string;
   title: string;
   kind: CaseKind;
   createdAt: string; // ISO
@@ -32,11 +33,11 @@ export interface SavedCase extends SavedCaseMeta {
 }
 
 interface StoreShape {
-  version: 1;
+  version: 2;
   cases: Record<string, SavedCase>;
 }
 
-const EMPTY: StoreShape = { version: 1, cases: {} };
+const EMPTY: StoreShape = { version: 2, cases: {} };
 
 export class CaseStore {
   private readonly path: string;
@@ -47,11 +48,17 @@ export class CaseStore {
     this.state = load(path);
   }
 
-  list(filter?: { kind?: CaseKind; query?: string }): SavedCaseMeta[] {
-    const arr = Object.values(this.state.cases);
-    const q = filter?.query?.toLowerCase();
+  list(filter: {
+    ownerId: string;
+    kind?: CaseKind;
+    query?: string;
+  }): SavedCaseMeta[] {
+    const arr = Object.values(this.state.cases).filter(
+      (c) => c.ownerId === filter.ownerId,
+    );
+    const q = filter.query?.toLowerCase();
     return arr
-      .filter((c) => !filter?.kind || c.kind === filter.kind)
+      .filter((c) => !filter.kind || c.kind === filter.kind)
       .filter((c) => {
         if (!q) return true;
         return (
@@ -64,11 +71,14 @@ export class CaseStore {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
-  get(id: string): SavedCase | undefined {
-    return this.state.cases[id];
+  get(id: string, ownerId: string): SavedCase | undefined {
+    const c = this.state.cases[id];
+    if (!c || c.ownerId !== ownerId) return undefined;
+    return c;
   }
 
   create(input: {
+    ownerId: string;
     title: string;
     kind: CaseKind;
     payload: unknown;
@@ -79,6 +89,7 @@ export class CaseStore {
     const id = randomUUID();
     const c: SavedCase = {
       id,
+      ownerId: input.ownerId,
       title: input.title,
       kind: input.kind,
       payload: input.payload,
@@ -94,10 +105,11 @@ export class CaseStore {
 
   update(
     id: string,
+    ownerId: string,
     patch: Partial<Pick<SavedCase, "title" | "payload" | "tags" | "notes">>,
   ): SavedCase | undefined {
     const prev = this.state.cases[id];
-    if (!prev) return undefined;
+    if (!prev || prev.ownerId !== ownerId) return undefined;
     const next: SavedCase = {
       ...prev,
       ...patch,
@@ -108,8 +120,9 @@ export class CaseStore {
     return next;
   }
 
-  delete(id: string): boolean {
-    if (!(id in this.state.cases)) return false;
+  delete(id: string, ownerId: string): boolean {
+    const c = this.state.cases[id];
+    if (!c || c.ownerId !== ownerId) return false;
     delete this.state.cases[id];
     this.persist();
     return true;
@@ -131,11 +144,19 @@ export class CaseStore {
 function load(path: string): StoreShape {
   try {
     const raw = readFileSync(path, "utf8");
-    const parsed = JSON.parse(raw) as StoreShape;
-    if (parsed?.version !== 1 || typeof parsed.cases !== "object") {
+    const parsed = JSON.parse(raw) as { version: number; cases?: Record<string, SavedCase> };
+    if (parsed?.version === 1 && parsed.cases) {
+      // Migrate v1 → v2: stamp a `__legacy__` ownerId on existing cases.
+      const cases: Record<string, SavedCase> = {};
+      for (const [id, c] of Object.entries(parsed.cases)) {
+        cases[id] = { ...(c as SavedCase), ownerId: (c as SavedCase).ownerId ?? "__legacy__" };
+      }
+      return { version: 2, cases };
+    }
+    if (parsed?.version !== 2 || typeof parsed.cases !== "object") {
       throw new Error("bad shape");
     }
-    return parsed;
+    return parsed as StoreShape;
   } catch {
     return structuredClone(EMPTY);
   }

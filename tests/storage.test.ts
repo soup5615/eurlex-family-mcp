@@ -14,26 +14,29 @@ afterEach(() => {
   /* no global cleanup — each test cleans its own tmp dir */
 });
 
+const OWNER = "u1";
+
 describe("CaseStore", () => {
   it("crée, liste, récupère, met à jour, supprime un cas", () => {
     const { store, dir } = makeStore();
     try {
       const c = store.create({
+        ownerId: OWNER,
         title: "Test",
         kind: "succession",
         payload: { foo: 1 },
         tags: ["fr"],
       });
       expect(c.id).toBeTruthy();
-      expect(store.list()).toHaveLength(1);
-      expect(store.get(c.id)?.title).toBe("Test");
+      expect(store.list({ ownerId: OWNER })).toHaveLength(1);
+      expect(store.get(c.id, OWNER)?.title).toBe("Test");
 
-      const updated = store.update(c.id, { title: "Test v2" });
+      const updated = store.update(c.id, OWNER, { title: "Test v2" });
       expect(updated?.title).toBe("Test v2");
       expect(updated?.updatedAt).not.toBe(c.updatedAt);
 
-      expect(store.delete(c.id)).toBe(true);
-      expect(store.list()).toHaveLength(0);
+      expect(store.delete(c.id, OWNER)).toBe(true);
+      expect(store.list({ ownerId: OWNER })).toHaveLength(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -42,11 +45,26 @@ describe("CaseStore", () => {
   it("filtre par kind et par requête", () => {
     const { store, dir } = makeStore();
     try {
-      store.create({ title: "Succession alpha", kind: "succession", payload: {} });
-      store.create({ title: "Divorce bêta", kind: "divorce", payload: {}, notes: "Rome III" });
-      expect(store.list({ kind: "succession" })).toHaveLength(1);
-      expect(store.list({ query: "alpha" })).toHaveLength(1);
-      expect(store.list({ query: "rome" })).toHaveLength(1);
+      store.create({ ownerId: OWNER, title: "Succession alpha", kind: "succession", payload: {} });
+      store.create({ ownerId: OWNER, title: "Divorce bêta", kind: "divorce", payload: {}, notes: "Rome III" });
+      expect(store.list({ ownerId: OWNER, kind: "succession" })).toHaveLength(1);
+      expect(store.list({ ownerId: OWNER, query: "alpha" })).toHaveLength(1);
+      expect(store.list({ ownerId: OWNER, query: "rome" })).toHaveLength(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("isole les cas par ownerId", () => {
+    const { store, dir } = makeStore();
+    try {
+      const a = store.create({ ownerId: "alice", title: "Alice", kind: "succession", payload: {} });
+      store.create({ ownerId: "bob", title: "Bob", kind: "succession", payload: {} });
+      expect(store.list({ ownerId: "alice" })).toHaveLength(1);
+      expect(store.list({ ownerId: "bob" })).toHaveLength(1);
+      expect(store.get(a.id, "bob")).toBeUndefined();
+      expect(store.delete(a.id, "bob")).toBe(false);
+      expect(store.list({ ownerId: "alice" })).toHaveLength(1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -55,10 +73,10 @@ describe("CaseStore", () => {
   it("persiste le contenu entre deux instances (fichier JSON)", () => {
     const { store, dir, path } = makeStore();
     try {
-      store.create({ title: "Persist", kind: "matrimonial", payload: { a: 1 } });
+      store.create({ ownerId: OWNER, title: "Persist", kind: "matrimonial", payload: { a: 1 } });
       const reloaded = new CaseStore(path);
-      expect(reloaded.list()).toHaveLength(1);
-      expect(reloaded.list()[0]!.title).toBe("Persist");
+      expect(reloaded.list({ ownerId: OWNER })).toHaveLength(1);
+      expect(reloaded.list({ ownerId: OWNER })[0]!.title).toBe("Persist");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

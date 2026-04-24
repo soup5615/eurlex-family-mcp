@@ -78,6 +78,14 @@ import { listBiiBoundStates } from "../brussels2/memberStates.js";
 import { analyseCrisis, type CrisisCase } from "../brussels2/crisis.js";
 
 import { CaseStore, type CaseKind } from "./storage.js";
+import {
+  buildSessionCookie,
+  clearSessionCookie,
+  parseCookies,
+  SESSION_COOKIE,
+  UserStore,
+  type User,
+} from "./auth.js";
 import type { SuccessionCase } from "../types.js";
 import type { MatrimonialCase } from "../matrimonial/types.js";
 import type { PartnershipCase } from "../partnerships/types.js";
@@ -90,26 +98,45 @@ import type {
 export interface ServerOptions {
   port: number;
   host?: string;
-  dataPath?: string;
+  dataPath?: string; // path to cases JSON
+  usersPath?: string; // path to users JSON (defaults next to dataPath)
   webRoot?: string;
+  cookieSecure?: boolean; // emit Secure cookie attribute
+  // "required": every /api/* route except /api/auth/* requires a session.
+  // "off"     : auth routes still exist but other routes accept an
+  //             implicit "anonymous" user (used by tests).
+  auth?: "required" | "off";
 }
 
-type Handler = (
-  req: IncomingMessage,
-  res: ServerResponse,
-  ctx: { params: Record<string, string>; store: CaseStore; webRoot: string },
-) => Promise<void> | void;
+interface RouteCtx {
+  params: Record<string, string>;
+  store: CaseStore;
+  users: UserStore;
+  webRoot: string;
+  user: User | null; // resolved by middleware
+  cookieSecure: boolean;
+}
+
+type Handler = (req: IncomingMessage, res: ServerResponse, ctx: RouteCtx) => Promise<void> | void;
 
 interface Route {
   method: "GET" | "POST" | "PUT" | "DELETE";
   pattern: RegExp;
   keys: string[];
   handler: Handler;
+  // If true, the route is reachable without a valid session even when
+  // auth mode is "required" (used for /api/auth/* and /health).
+  public?: boolean;
 }
 
 export function buildRoutes(): Route[] {
   const routes: Route[] = [];
-  const add = (method: Route["method"], pattern: string, handler: Handler) => {
+  const add = (
+    method: Route["method"],
+    pattern: string,
+    handler: Handler,
+    opts: { public?: boolean } = {},
+  ) => {
     const keys: string[] = [];
     const re = new RegExp(
       "^" +
@@ -119,10 +146,62 @@ export function buildRoutes(): Route[] {
         }) +
         "/?$",
     );
-    routes.push({ method, pattern: re, keys, handler });
+    routes.push({ method, pattern: re, keys, handler, ...(opts.public ? { public: true } : {}) });
   };
 
-  add("GET", "/health", (_req, res) => json(res, 200, { ok: true }));
+  add("GET", "/health", (_req, res) => json(res, 200, { ok: true }), { public: true });
+
+  // Auth routes — public by definition.
+  add(
+    "POST",
+    "/api/auth/register",
+    async (req, res, { users, cookieSecure }) => {
+      const body = await readJson<{ email?: string; password?: string }>(req);
+      if (!body.email || !body.password) {
+        return json(res, 400, { error: "email et password requis" });
+      }
+      try {
+        const u = users.create(body.email, body.password);
+        const token = users.issueSession(u.id);
+        res.setHeader("set-cookie", buildSessionCookie(token, { secure: cookieSecure }));
+        json(res, 201, users.publicView(u));
+      } catch (err) {
+        json(res, 400, { error: (err as Error).message });
+      }
+    },
+    { public: true },
+  );
+  add(
+    "POST",
+    "/api/auth/login",
+    async (req, res, { users, cookieSecure }) => {
+      const body = await readJson<{ email?: string; password?: string }>(req);
+      if (!body.email || !body.password) {
+        return json(res, 400, { error: "email et password requis" });
+      }
+      const u = users.findByEmail(body.email);
+      if (!u || !users.verifyPassword(u, body.password)) {
+        return json(res, 401, { error: "identifiants invalides" });
+      }
+      const token = users.issueSession(u.id);
+      res.setHeader("set-cookie", buildSessionCookie(token, { secure: cookieSecure }));
+      json(res, 200, users.publicView(u));
+    },
+    { public: true },
+  );
+  add(
+    "POST",
+    "/api/auth/logout",
+    (_req, res, { cookieSecure }) => {
+      res.setHeader("set-cookie", clearSessionCookie({ secure: cookieSecure }));
+      json(res, 204, null);
+    },
+    { public: true },
+  );
+  add("GET", "/api/auth/me", (_req, res, { user, users }) => {
+    if (!user) return json(res, 401, { error: "non authentifié" });
+    json(res, 200, users.publicView(user));
+  }, { public: true });
 
   // Engines — analysis
   add("POST", "/api/succession/analyze", async (req, res) => {
@@ -221,8 +300,8 @@ export function buildRoutes(): Route[] {
     json(res, 200, listPartnershipBoundStates()),
   );
 
-  // Case library
-  add("GET", "/api/cases", (req, res, { store }) => {
+  // Case library — scoped to the current user.
+  add("GET", "/api/cases", (req, res, { store, user }) => {
     const url = new URL(req.url ?? "/", "http://localhost");
     const kind = url.searchParams.get("kind") as CaseKind | null;
     const q = url.searchParams.get("q");
@@ -230,12 +309,13 @@ export function buildRoutes(): Route[] {
       res,
       200,
       store.list({
+        ownerId: user?.id ?? "anonymous",
         ...(kind ? { kind } : {}),
         ...(q ? { query: q } : {}),
       }),
     );
   });
-  add("POST", "/api/cases", async (req, res, { store }) => {
+  add("POST", "/api/cases", async (req, res, { store, user }) => {
     const body = await readJson<{
       title: string;
       kind: CaseKind;
@@ -246,26 +326,26 @@ export function buildRoutes(): Route[] {
     if (!body.title || !body.kind || body.payload === undefined) {
       return json(res, 400, { error: "title, kind, payload required" });
     }
-    json(res, 201, store.create(body));
+    json(res, 201, store.create({ ...body, ownerId: user?.id ?? "anonymous" }));
   });
-  add("GET", "/api/cases/:id", (_req, res, { params, store }) => {
-    const c = store.get(params.id!);
+  add("GET", "/api/cases/:id", (_req, res, { params, store, user }) => {
+    const c = store.get(params.id!, user?.id ?? "anonymous");
     if (!c) return json(res, 404, { error: "not found" });
     json(res, 200, c);
   });
-  add("PUT", "/api/cases/:id", async (req, res, { params, store }) => {
+  add("PUT", "/api/cases/:id", async (req, res, { params, store, user }) => {
     const patch = await readJson<{
       title?: string;
       payload?: unknown;
       tags?: string[];
       notes?: string;
     }>(req);
-    const c = store.update(params.id!, patch);
+    const c = store.update(params.id!, user?.id ?? "anonymous", patch);
     if (!c) return json(res, 404, { error: "not found" });
     json(res, 200, c);
   });
-  add("DELETE", "/api/cases/:id", (_req, res, { params, store }) => {
-    const ok = store.delete(params.id!);
+  add("DELETE", "/api/cases/:id", (_req, res, { params, store, user }) => {
+    const ok = store.delete(params.id!, user?.id ?? "anonymous");
     if (!ok) return json(res, 404, { error: "not found" });
     json(res, 204, null);
   });
@@ -293,9 +373,19 @@ export function startServer(opts: ServerOptions): {
   server: ReturnType<typeof createServer>;
   url: string;
   store: CaseStore;
+  users: UserStore;
 } {
-  const store = new CaseStore(opts.dataPath ?? "./data/cases.json");
+  const dataPath = opts.dataPath ?? "./data/cases.json";
+  const usersPath =
+    opts.usersPath ??
+    (dataPath.endsWith("cases.json")
+      ? dataPath.replace(/cases\.json$/, "users.json")
+      : `${dataPath}.users.json`);
+  const store = new CaseStore(dataPath);
+  const users = new UserStore(usersPath);
   const webRoot = resolveWebRoot(opts.webRoot);
+  const cookieSecure = opts.cookieSecure ?? false;
+  const authMode = opts.auth ?? "required";
   const routes = buildRoutes();
 
   const server = createServer(async (req, res) => {
@@ -309,6 +399,11 @@ export function startServer(opts: ServerOptions): {
         return;
       }
 
+      // Resolve session.
+      const cookies = parseCookies(req.headers.cookie);
+      const sess = users.verifySession(cookies[SESSION_COOKIE]);
+      const user = sess ? users.get(sess.userId) ?? null : null;
+
       for (const r of routes) {
         if (r.method !== method) continue;
         const m = r.pattern.exec(url.pathname);
@@ -317,7 +412,18 @@ export function startServer(opts: ServerOptions): {
         r.keys.forEach((k, i) => {
           params[k] = decodeURIComponent(m[i + 1] ?? "");
         });
-        await r.handler(req, res, { params, store, webRoot });
+        // Authentication gate.
+        if (authMode === "required" && !r.public && !user) {
+          return json(res, 401, { error: "non authentifié" });
+        }
+        await r.handler(req, res, {
+          params,
+          store,
+          users,
+          webRoot,
+          user,
+          cookieSecure,
+        });
         return;
       }
       json(res, 404, { error: "not found" });
@@ -329,7 +435,7 @@ export function startServer(opts: ServerOptions): {
 
   server.listen(opts.port, opts.host ?? "127.0.0.1");
   const url = `http://${opts.host ?? "127.0.0.1"}:${opts.port}`;
-  return { server, url, store };
+  return { server, url, store, users };
 }
 
 async function readJson<T>(req: IncomingMessage): Promise<T> {

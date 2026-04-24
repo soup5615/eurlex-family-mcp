@@ -616,12 +616,99 @@ async function handleSaveSubmit(ev) {
   refreshLibrary();
 }
 
+// ---------- Auth ----------
+
+let authMode = "login"; // "login" | "register"
+
+async function fetchMe() {
+  const r = await fetch("/api/auth/me");
+  if (!r.ok) return null;
+  return r.json();
+}
+
+function showAuthDialog(message) {
+  const dlg = document.getElementById("auth-dialog");
+  const err = document.getElementById("auth-error");
+  if (message) {
+    err.textContent = message;
+    err.hidden = false;
+  } else {
+    err.hidden = true;
+  }
+  document.getElementById("auth-form").reset();
+  if (!dlg.open) dlg.showModal();
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  document.getElementById("auth-title").textContent =
+    mode === "login" ? "Connexion" : "Créer un compte";
+  document.getElementById("auth-toggle").textContent =
+    mode === "login" ? "Créer un compte" : "J'ai déjà un compte";
+  document.getElementById("auth-submit").textContent =
+    mode === "login" ? "Se connecter" : "Créer le compte";
+}
+
+async function handleAuthSubmit(ev) {
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  const body = {
+    email: fd.get("email")?.toString() || "",
+    password: fd.get("password")?.toString() || "",
+  };
+  const url = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    const errEl = document.getElementById("auth-error");
+    errEl.textContent = err.error || "erreur";
+    errEl.hidden = false;
+    return;
+  }
+  const user = await res.json();
+  document.getElementById("auth-dialog").close();
+  showSignedIn(user);
+  refreshLibrary();
+}
+
+async function logout() {
+  await fetch("/api/auth/logout", { method: "POST" });
+  showSignedOut();
+}
+
+function showSignedIn(user) {
+  const banner = document.getElementById("user-banner");
+  banner.hidden = false;
+  document.getElementById("user-email").textContent = user.email;
+}
+
+function showSignedOut() {
+  document.getElementById("user-banner").hidden = true;
+  document.getElementById("library").innerHTML = "";
+  setAuthMode("login");
+  showAuthDialog("");
+}
+
+// Wrap fetch to redirect to login on 401.
+const _fetch = window.fetch.bind(window);
+window.fetch = async (input, init) => {
+  const res = await _fetch(input, init);
+  if (res.status === 401) {
+    const url = typeof input === "string" ? input : input.url;
+    if (!url.includes("/api/auth/")) showSignedOut();
+  }
+  return res;
+};
+
 // ---------- Boot ----------
 
-function init() {
+async function init() {
   renderTabs();
   renderForm();
-  refreshLibrary();
   document.getElementById("btn-analyze").addEventListener("click", analyze);
   document.getElementById("btn-reset").addEventListener("click", () => {
     state.loadedCaseId = null;
@@ -644,6 +731,24 @@ function init() {
   document
     .getElementById("library-search")
     .addEventListener("input", () => refreshLibrary());
+  document
+    .getElementById("auth-form")
+    .addEventListener("submit", handleAuthSubmit);
+  document
+    .getElementById("auth-toggle")
+    .addEventListener("click", () =>
+      setAuthMode(authMode === "login" ? "register" : "login"),
+    );
+  document.getElementById("btn-logout").addEventListener("click", logout);
+
+  const me = await fetchMe();
+  if (me) {
+    showSignedIn(me);
+    refreshLibrary();
+  } else {
+    setAuthMode("login");
+    showAuthDialog();
+  }
 }
 
 init();
