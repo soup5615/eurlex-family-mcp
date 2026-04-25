@@ -17,6 +17,13 @@ export type CaseKind =
   | "crisis"
   | "combined";
 
+export interface VersionEntry {
+  id: string;
+  payload: unknown;
+  savedAt: string; // ISO — corresponds to the prior `updatedAt`
+  comment?: string; // optional commit-style note
+}
+
 export interface SavedCaseMeta {
   id: string;
   ownerId: string;
@@ -29,7 +36,8 @@ export interface SavedCaseMeta {
 }
 
 export interface SavedCase extends SavedCaseMeta {
-  payload: unknown; // the case object as understood by the engine
+  payload: unknown; // head version
+  versions?: VersionEntry[]; // history, newest first
 }
 
 interface StoreShape {
@@ -38,6 +46,10 @@ interface StoreShape {
 }
 
 const EMPTY: StoreShape = { version: 2, cases: {} };
+
+// Cap on the number of historical versions kept per case. The newest
+// entry is preserved; older ones are dropped.
+const MAX_VERSIONS = 50;
 
 export class CaseStore {
   private readonly path: string;
@@ -107,12 +119,82 @@ export class CaseStore {
     id: string,
     ownerId: string,
     patch: Partial<Pick<SavedCase, "title" | "payload" | "tags" | "notes">>,
+    opts: { comment?: string } = {},
   ): SavedCase | undefined {
     const prev = this.state.cases[id];
     if (!prev || prev.ownerId !== ownerId) return undefined;
+
+    // Snapshot the previous payload only when it actually changes.
+    const payloadChanged =
+      patch.payload !== undefined &&
+      JSON.stringify(patch.payload) !== JSON.stringify(prev.payload);
+
+    let history = prev.versions ?? [];
+    if (payloadChanged) {
+      const entry: VersionEntry = {
+        id: randomUUID(),
+        payload: prev.payload,
+        savedAt: prev.updatedAt,
+        ...(opts.comment !== undefined ? { comment: opts.comment } : {}),
+      };
+      history = [entry, ...history].slice(0, MAX_VERSIONS);
+    }
+
     const next: SavedCase = {
       ...prev,
       ...patch,
+      versions: history,
+      updatedAt: new Date().toISOString(),
+    };
+    this.state.cases[id] = next;
+    this.persist();
+    return next;
+  }
+
+  listVersions(id: string, ownerId: string): VersionEntry[] | undefined {
+    const c = this.state.cases[id];
+    if (!c || c.ownerId !== ownerId) return undefined;
+    return c.versions ?? [];
+  }
+
+  getVersion(
+    id: string,
+    ownerId: string,
+    versionId: string,
+  ): VersionEntry | undefined {
+    const c = this.state.cases[id];
+    if (!c || c.ownerId !== ownerId) return undefined;
+    return (c.versions ?? []).find((v) => v.id === versionId);
+  }
+
+  restoreVersion(
+    id: string,
+    ownerId: string,
+    versionId: string,
+    opts: { comment?: string } = {},
+  ): SavedCase | undefined {
+    const prev = this.state.cases[id];
+    if (!prev || prev.ownerId !== ownerId) return undefined;
+    const target = (prev.versions ?? []).find((v) => v.id === versionId);
+    if (!target) return undefined;
+
+    // Push the current head into history, then make `target` the head.
+    const headSnapshot: VersionEntry = {
+      id: randomUUID(),
+      payload: prev.payload,
+      savedAt: prev.updatedAt,
+      ...(opts.comment !== undefined
+        ? { comment: opts.comment }
+        : { comment: "avant restauration" }),
+    };
+    const history = [headSnapshot, ...(prev.versions ?? [])]
+      .filter((v) => v.id !== versionId)
+      .slice(0, MAX_VERSIONS);
+
+    const next: SavedCase = {
+      ...prev,
+      payload: target.payload,
+      versions: history,
       updatedAt: new Date().toISOString(),
     };
     this.state.cases[id] = next;

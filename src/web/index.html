@@ -39,6 +39,7 @@
         <div class="panel-actions">
           <button id="btn-consult" type="button" class="btn" disabled>Note HTML</button>
           <button id="btn-pdf" type="button" class="btn" disabled>PDF</button>
+          <button id="btn-versions" type="button" class="btn" hidden>Versions</button>
           <button id="btn-save" type="button" class="btn" disabled>Enregistrer…</button>
         </div>
       </div>
@@ -53,6 +54,18 @@
       <ul id="library" class="library"></ul>
     </aside>
   </main>
+
+  <dialog id="versions-dialog">
+    <h3>Historique des versions</h3>
+    <p class="muted" style="font-size:.85rem;margin:.3rem 0 .6rem;">
+      Chaque enregistrement modifiant le payload crée une version. Cliquez pour prévisualiser, restaurer ou comparer.
+    </p>
+    <ul id="versions-list" class="library" style="max-height:50vh;"></ul>
+    <pre id="versions-preview" style="display:none;background:#f7f7f5;padding:.5rem;border-radius:3px;overflow:auto;max-height:30vh;font-size:.75rem;"></pre>
+    <menu>
+      <button type="button" class="btn" id="versions-close">Fermer</button>
+    </menu>
+  </dialog>
 
   <dialog id="auth-dialog">
     <form method="dialog" id="auth-form">

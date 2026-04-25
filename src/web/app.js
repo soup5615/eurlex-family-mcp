@@ -288,6 +288,7 @@ function renderForm() {
   document.getElementById("btn-consult").disabled = true;
   document.getElementById("btn-pdf").disabled = true;
   document.getElementById("btn-save").disabled = true;
+  document.getElementById("btn-versions").hidden = !state.loadedCaseId;
 }
 
 function readPayload() {
@@ -625,6 +626,81 @@ async function loadCase(id) {
   document.getElementById("input-title").textContent =
     `Cas chargé — ${c.title}`;
   document.getElementById("json-editor").value = JSON.stringify(c.payload, null, 2);
+  document.getElementById("btn-versions").hidden = false;
+}
+
+async function showVersions() {
+  if (!state.loadedCaseId) return;
+  const res = await fetch(`/api/cases/${state.loadedCaseId}/versions`);
+  if (!res.ok) return;
+  const versions = await res.json();
+  const ul = document.getElementById("versions-list");
+  ul.innerHTML = "";
+  document.getElementById("versions-preview").style.display = "none";
+  if (versions.length === 0) {
+    const li = document.createElement("li");
+    li.className = "muted";
+    li.textContent = "Aucune version antérieure.";
+    ul.appendChild(li);
+  } else {
+    for (const v of versions) {
+      const li = document.createElement("li");
+      li.style.position = "relative";
+      li.innerHTML = `
+        <div class="title">Version du ${new Date(v.savedAt).toLocaleString()}</div>
+        ${v.comment ? `<div class="meta">${escape(v.comment)}</div>` : ""}
+        <div style="margin-top:.3rem;display:flex;gap:.3rem;">
+          <button type="button" class="btn" data-act="preview" data-id="${v.id}">Prévisualiser</button>
+          <button type="button" class="btn btn-primary" data-act="restore" data-id="${v.id}">Restaurer</button>
+        </div>
+      `;
+      ul.appendChild(li);
+    }
+    ul.addEventListener("click", handleVersionsClick, { once: true });
+  }
+  document.getElementById("versions-dialog").showModal();
+}
+
+async function handleVersionsClick(ev) {
+  const t = ev.target.closest("button");
+  if (!t) return;
+  const id = t.getAttribute("data-id");
+  const act = t.getAttribute("data-act");
+  if (!id || !act) return;
+  if (act === "preview") {
+    const res = await fetch(
+      `/api/cases/${state.loadedCaseId}/versions/${id}`,
+    );
+    if (!res.ok) return;
+    const v = await res.json();
+    const pre = document.getElementById("versions-preview");
+    pre.textContent = JSON.stringify(v.payload, null, 2);
+    pre.style.display = "block";
+    // Re-bind listener since `once: true` consumed it.
+    document
+      .getElementById("versions-list")
+      .addEventListener("click", handleVersionsClick, { once: true });
+  } else if (act === "restore") {
+    if (!confirm("Restaurer cette version ? La version courante sera ajoutée à l'historique.")) {
+      document
+        .getElementById("versions-list")
+        .addEventListener("click", handleVersionsClick, { once: true });
+      return;
+    }
+    const res = await fetch(
+      `/api/cases/${state.loadedCaseId}/versions/${id}/restore`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ comment: "via UI" }),
+      },
+    );
+    if (!res.ok) return;
+    const c = await res.json();
+    document.getElementById("json-editor").value = JSON.stringify(c.payload, null, 2);
+    document.getElementById("versions-dialog").close();
+    refreshLibrary();
+  }
 }
 
 function openSaveDialog() {
@@ -790,6 +866,12 @@ async function init() {
     .getElementById("btn-consult")
     .addEventListener("click", downloadConsultation);
   document.getElementById("btn-pdf").addEventListener("click", downloadPdf);
+  document.getElementById("btn-versions").addEventListener("click", showVersions);
+  document
+    .getElementById("versions-close")
+    .addEventListener("click", () =>
+      document.getElementById("versions-dialog").close(),
+    );
   document.getElementById("btn-save").addEventListener("click", openSaveDialog);
   document
     .getElementById("save-cancel")

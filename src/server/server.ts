@@ -374,13 +374,20 @@ export function buildRoutes(): Route[] {
     json(res, 200, c);
   });
   add("PUT", "/api/cases/:id", async (req, res, { params, store, user }) => {
-    const patch = await readJson<{
+    const body = await readJson<{
       title?: string;
       payload?: unknown;
       tags?: string[];
       notes?: string;
+      comment?: string;
     }>(req);
-    const c = store.update(params.id!, user?.id ?? "anonymous", patch);
+    const { comment, ...patch } = body;
+    const c = store.update(
+      params.id!,
+      user?.id ?? "anonymous",
+      patch,
+      comment !== undefined ? { comment } : {},
+    );
     if (!c) return json(res, 404, { error: "not found" });
     json(res, 200, c);
   });
@@ -389,6 +396,52 @@ export function buildRoutes(): Route[] {
     if (!ok) return json(res, 404, { error: "not found" });
     json(res, 204, null);
   });
+
+  // Versioning
+  add(
+    "GET",
+    "/api/cases/:id/versions",
+    (_req, res, { params, store, user }) => {
+      const versions = store.listVersions(params.id!, user?.id ?? "anonymous");
+      if (versions === undefined) return json(res, 404, { error: "not found" });
+      // Strip payloads for the list view.
+      json(
+        res,
+        200,
+        versions.map(({ payload: _p, ...meta }) => meta),
+      );
+    },
+  );
+  add(
+    "GET",
+    "/api/cases/:id/versions/:vid",
+    (_req, res, { params, store, user }) => {
+      const v = store.getVersion(
+        params.id!,
+        user?.id ?? "anonymous",
+        params.vid!,
+      );
+      if (!v) return json(res, 404, { error: "version not found" });
+      json(res, 200, v);
+    },
+  );
+  add(
+    "POST",
+    "/api/cases/:id/versions/:vid/restore",
+    async (req, res, { params, store, user }) => {
+      const body = await readJson<{ comment?: string }>(req).catch(
+        () => ({}) as { comment?: string },
+      );
+      const c = store.restoreVersion(
+        params.id!,
+        user?.id ?? "anonymous",
+        params.vid!,
+        body.comment !== undefined ? { comment: body.comment } : {},
+      );
+      if (!c) return json(res, 404, { error: "not found" });
+      json(res, 200, c);
+    },
+  );
 
   return routes;
 }
