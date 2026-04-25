@@ -28,7 +28,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { extname, join } from "node:path";
+import { extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { analyseSuccession } from "../engine/analyze.js";
@@ -536,6 +536,14 @@ export function startServer(opts: ServerOptions): {
       }
       json(res, 404, { error: "not found" });
     } catch (err) {
+      if (err instanceof BodyTooLargeError) {
+        json(res, 413, { error: err.message });
+        return;
+      }
+      if (err instanceof SyntaxError) {
+        json(res, 400, { error: "invalid JSON body" });
+        return;
+      }
       const msg = (err as Error).message || "internal error";
       json(res, 500, { error: msg });
     }
@@ -546,14 +554,51 @@ export function startServer(opts: ServerOptions): {
   return { server, url, store, users };
 }
 
-async function readJson<T>(req: IncomingMessage): Promise<T> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+// Cap on the size of any incoming JSON body. Beyond this the server
+// rejects with 413 to protect against trivial DoS via memory growth.
+const MAX_BODY_BYTES = 1_048_576; // 1 MiB
+
+class BodyTooLargeError extends Error {
+  readonly status = 413;
+  constructor() {
+    super(`request body exceeds ${MAX_BODY_BYTES} bytes`);
   }
+}
+
+async function readJson<T>(req: IncomingMessage): Promise<T> {
+  // Fast-fail when the client's Content-Length exceeds the cap. The
+  // connection is drained politely (no destroy()) so the 413 response
+  // can be delivered without ECONNRESET on the client side.
+  const declared = Number(req.headers["content-length"] ?? "");
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+    await drain(req);
+    throw new BodyTooLargeError();
+  }
+
+  const chunks: Buffer[] = [];
+  let total = 0;
+  let tooLarge = false;
+  for await (const chunk of req) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buf.length;
+    if (total > MAX_BODY_BYTES) {
+      tooLarge = true;
+      // Keep iterating to drain the remaining bytes from the socket;
+      // discard them.
+      continue;
+    }
+    if (!tooLarge) chunks.push(buf);
+  }
+  if (tooLarge) throw new BodyTooLargeError();
   const raw = Buffer.concat(chunks).toString("utf8");
   if (!raw) return {} as T;
   return JSON.parse(raw) as T;
+}
+
+async function drain(req: IncomingMessage): Promise<void> {
+  for await (const _ of req) {
+    /* discard */
+  }
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -624,13 +669,19 @@ async function serveStatic(
   pathname: string,
   res: ServerResponse,
 ): Promise<void> {
-  // Prevent directory traversal.
-  const safe = pathname.replace(/\.\.+/g, ".");
-  const p = safe === "/" ? "/index.html" : safe;
-  const full = join(root, p);
+  const rootResolved = resolve(root);
+  const requested = pathname === "/" ? "/index.html" : pathname;
+  const target = resolve(rootResolved, "." + requested);
+  // Reject any path that escapes the static root.
+  if (target !== rootResolved && !target.startsWith(rootResolved + sep)) {
+    res.statusCode = 403;
+    res.setHeader("content-type", "text/plain; charset=utf-8");
+    res.end("forbidden");
+    return;
+  }
   try {
-    const content = await readFile(full);
-    const mime = MIME[extname(full)] ?? "application/octet-stream";
+    const content = await readFile(target);
+    const mime = MIME[extname(target)] ?? "application/octet-stream";
     res.statusCode = 200;
     res.setHeader("content-type", mime);
     res.setHeader("cache-control", "no-store");

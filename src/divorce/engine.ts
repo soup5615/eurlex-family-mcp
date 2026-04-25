@@ -98,6 +98,19 @@ export function determineRome3ApplicableLaw(
   // Art. 5: party autonomy.
   if (input.choiceOfLaw) {
     const chosen = input.choiceOfLaw.chosenLaw.toUpperCase();
+    // Art. 5(2) — the agreement may be concluded at the latest at the
+    // moment the court is seised; the law of the forum can extend
+    // this. We surface a warning when the supplied dates are
+    // inconsistent.
+    if (
+      /^\d{4}-\d{2}-\d{2}$/.test(input.choiceOfLaw.dateOfChoice) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(input.dateCourtSeised) &&
+      input.choiceOfLaw.dateOfChoice > input.dateCourtSeised
+    ) {
+      warnings.push(
+        `Art. 5(2) : la convention de choix (${input.choiceOfLaw.dateOfChoice}) est postérieure à la saisine du juge (${input.dateCourtSeised}). Recevabilité conditionnée à la loi du for.`,
+      );
+    }
     const validity = validateRome3Choice(input, chosen);
     if (validity.valid) {
       reasoning.push({

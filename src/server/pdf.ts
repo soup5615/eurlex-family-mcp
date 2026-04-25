@@ -9,9 +9,10 @@ import {
   rmSync,
   writeFileSync,
   existsSync,
+  statSync,
 } from "node:fs";
+import { delimiter, join } from "node:path";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
 
 export class ChromeNotFoundError extends Error {
   constructor(message: string) {
@@ -44,10 +45,34 @@ export function detectChrome(): string | null {
   for (const c of CANDIDATES) {
     if (c.includes("/") || c.includes("\\")) {
       if (existsSync(c)) return c;
-    } else {
-      // PATH lookup via `command -v` is too fragile across platforms;
-      // we rely on the absolute candidates above and the env var.
-      // Spawning will surface ENOENT if the relative name is wrong.
+      continue;
+    }
+    const onPath = lookupOnPath(c);
+    if (onPath) return onPath;
+  }
+  return null;
+}
+
+// PATH lookup with the right extensions on Windows. We avoid spawning
+// `which`/`where` to keep this fast and dependency-free.
+function lookupOnPath(name: string): string | null {
+  const PATH = process.env.PATH ?? "";
+  if (!PATH) return null;
+  const dirs = PATH.split(delimiter);
+  const isWin = process.platform === "win32";
+  const exts = isWin
+    ? (process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";")
+    : [""];
+  for (const dir of dirs) {
+    if (!dir) continue;
+    for (const ext of exts) {
+      const candidate = join(dir, name + ext);
+      try {
+        const s = statSync(candidate);
+        if (s.isFile()) return candidate;
+      } catch {
+        /* not found, try next */
+      }
     }
   }
   return null;
@@ -65,7 +90,7 @@ export async function renderPdf(
   html: string,
   opts: RenderPdfOptions = {},
 ): Promise<Buffer> {
-  const chrome = opts.chromePath ?? detectChrome() ?? findInPath();
+  const chrome = opts.chromePath ?? detectChrome();
   if (!chrome) {
     throw new ChromeNotFoundError(
       "Chrome/Chromium introuvable. Installer Chrome/Chromium ou définir la variable d'environnement CHROME_PATH.",
@@ -81,13 +106,6 @@ export async function renderPdf(
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-}
-
-function findInPath(): string | null {
-  // Best-effort PATH lookup via spawnSync would add complexity; rely
-  // on absolute candidates / CHROME_PATH for now. Returning null here
-  // triggers the explicit error above.
-  return null;
 }
 
 function runChrome(

@@ -677,13 +677,12 @@ async function showVersions() {
       `;
       ul.appendChild(li);
     }
-    ul.addEventListener("click", handleVersionsClick, { once: true });
   }
   document.getElementById("versions-dialog").showModal();
 }
 
 async function handleVersionsClick(ev) {
-  const t = ev.target.closest("button");
+  const t = ev.target.closest("button[data-act]");
   if (!t) return;
   const id = t.getAttribute("data-id");
   const act = t.getAttribute("data-act");
@@ -697,15 +696,8 @@ async function handleVersionsClick(ev) {
     const pre = document.getElementById("versions-preview");
     pre.textContent = JSON.stringify(v.payload, null, 2);
     pre.style.display = "block";
-    // Re-bind listener since `once: true` consumed it.
-    document
-      .getElementById("versions-list")
-      .addEventListener("click", handleVersionsClick, { once: true });
   } else if (act === "restore") {
     if (!confirm("Restaurer cette version ? La version courante sera ajoutée à l'historique.")) {
-      document
-        .getElementById("versions-list")
-        .addEventListener("click", handleVersionsClick, { once: true });
       return;
     }
     const res = await fetch(
@@ -888,6 +880,9 @@ async function init() {
     .addEventListener("click", downloadConsultation);
   document.getElementById("btn-pdf").addEventListener("click", downloadPdf);
   document.getElementById("btn-versions").addEventListener("click", showVersions);
+  document
+    .getElementById("versions-list")
+    .addEventListener("click", handleVersionsClick);
   document
     .getElementById("versions-close")
     .addEventListener("click", () =>
