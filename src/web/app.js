@@ -8,6 +8,7 @@ const TABS = [
     label: "Succession",
     analyzeUrl: "/api/succession/analyze",
     consultUrl: "/api/succession/consultation",
+    pdfUrl: "/api/succession/pdf",
     consultWrap: (c) => ({ case: c }),
     example: {
       deceased: {
@@ -40,6 +41,7 @@ const TABS = [
     label: "Régime matrimonial",
     analyzeUrl: "/api/matrimonial/analyze",
     consultUrl: "/api/matrimonial/consultation",
+    pdfUrl: "/api/matrimonial/pdf",
     consultWrap: (c) => ({ case: c }),
     example: {
       spouses: [
@@ -123,6 +125,7 @@ const TABS = [
     label: "Décès d'un conjoint",
     analyzeUrl: "/api/combined/analyze",
     consultUrl: "/api/combined/consultation",
+    pdfUrl: "/api/combined/pdf",
     consultWrap: (c) => c,
     example: {
       succession: {
@@ -245,6 +248,7 @@ function renderForm() {
   }
 
   document.getElementById("btn-consult").disabled = true;
+  document.getElementById("btn-pdf").disabled = true;
   document.getElementById("btn-save").disabled = true;
 }
 
@@ -279,6 +283,7 @@ async function analyze() {
   state.lastPayload = payload;
   document.getElementById("btn-save").disabled = false;
   document.getElementById("btn-consult").disabled = !tab.consultUrl;
+  document.getElementById("btn-pdf").disabled = !tab.pdfUrl;
   renderResult(data);
 }
 
@@ -504,6 +509,33 @@ async function downloadConsultation() {
   URL.revokeObjectURL(url);
 }
 
+async function downloadPdf() {
+  const tab = findTab(state.activeTab);
+  if (!tab.pdfUrl || !state.lastPayload) return;
+  const body = JSON.stringify(tab.consultWrap(state.lastPayload));
+  const res = await fetch(tab.pdfUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    alert(
+      `PDF impossible : ${err.error}${err.hint ? "\n\nIndice : " + err.hint : ""}`,
+    );
+    return;
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `consultation-${tab.key}-${new Date()
+    .toISOString()
+    .slice(0, 10)}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ---------- Library ----------
 
 async function refreshLibrary() {
@@ -719,6 +751,7 @@ async function init() {
   document
     .getElementById("btn-consult")
     .addEventListener("click", downloadConsultation);
+  document.getElementById("btn-pdf").addEventListener("click", downloadPdf);
   document.getElementById("btn-save").addEventListener("click", openSaveDialog);
   document
     .getElementById("save-cancel")

@@ -86,6 +86,7 @@ import {
   UserStore,
   type User,
 } from "./auth.js";
+import { ChromeNotFoundError, renderPdf } from "./pdf.js";
 import type { SuccessionCase } from "../types.js";
 import type { MatrimonialCase } from "../matrimonial/types.js";
 import type { PartnershipCase } from "../partnerships/types.js";
@@ -213,6 +214,12 @@ export function buildRoutes(): Route[] {
     const a = analyseSuccession(c);
     html(res, 200, renderConsultationHTML(a, title ? { title } : {}));
   });
+  add("POST", "/api/succession/pdf", async (req, res) => {
+    const { case: c, title } = await readJson<{ case: SuccessionCase; title?: string }>(req);
+    const a = analyseSuccession(c);
+    const out = renderConsultationHTML(a, title ? { title } : {});
+    await sendPdf(res, out, slug(title ?? "consultation-succession"));
+  });
 
   add("POST", "/api/matrimonial/analyze", async (req, res) => {
     json(res, 200, analyseMatrimonial(await readJson<MatrimonialCase>(req)));
@@ -221,6 +228,12 @@ export function buildRoutes(): Route[] {
     const { case: c, title } = await readJson<{ case: MatrimonialCase; title?: string }>(req);
     const a = analyseMatrimonial(c);
     html(res, 200, renderMatrimonialHTML(a, title ? { title } : {}));
+  });
+  add("POST", "/api/matrimonial/pdf", async (req, res) => {
+    const { case: c, title } = await readJson<{ case: MatrimonialCase; title?: string }>(req);
+    const a = analyseMatrimonial(c);
+    const out = renderMatrimonialHTML(a, title ? { title } : {});
+    await sendPdf(res, out, slug(title ?? "consultation-matrimonial"));
   });
 
   add("POST", "/api/combined/analyze", async (req, res) => {
@@ -231,6 +244,20 @@ export function buildRoutes(): Route[] {
     const { title, ...rest } = body;
     const a = analyseCombined(rest);
     html(res, 200, renderCombinedHTML(a, title ? { title } : {}));
+  });
+  add("POST", "/api/combined/pdf", async (req, res) => {
+    const body = await readJson<CombinedCase & { title?: string }>(req);
+    const { title, ...rest } = body;
+    const a = analyseCombined(rest);
+    const out = renderCombinedHTML(a, title ? { title } : {});
+    await sendPdf(res, out, slug(title ?? "consultation-combinee"));
+  });
+
+  // Generic PDF endpoint — useful for callers who already have HTML.
+  add("POST", "/api/pdf", async (req, res) => {
+    const body = await readJson<{ html: string; filename?: string }>(req);
+    if (!body.html) return json(res, 400, { error: "html requis" });
+    await sendPdf(res, body.html, slug(body.filename ?? "consultation"));
   });
 
   add("POST", "/api/partnership/analyze", async (req, res) => {
@@ -462,6 +489,43 @@ function html(res: ServerResponse, status: number, body: string): void {
   res.statusCode = status;
   res.setHeader("content-type", "text/html; charset=utf-8");
   res.end(body);
+}
+
+function slug(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 80) || "consultation";
+}
+
+async function sendPdf(
+  res: ServerResponse,
+  htmlBody: string,
+  filename: string,
+): Promise<void> {
+  try {
+    const pdf = await renderPdf(htmlBody);
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/pdf");
+    res.setHeader(
+      "content-disposition",
+      `attachment; filename="${filename}.pdf"`,
+    );
+    res.end(pdf);
+  } catch (err) {
+    if (err instanceof ChromeNotFoundError) {
+      json(res, 503, {
+        error: err.message,
+        hint:
+          "Définir CHROME_PATH ou installer Chrome/Chromium ; à défaut, télécharger la note HTML et imprimer depuis le navigateur.",
+      });
+      return;
+    }
+    json(res, 500, { error: (err as Error).message || "PDF rendering failed" });
+  }
 }
 
 const MIME: Record<string, string> = {
