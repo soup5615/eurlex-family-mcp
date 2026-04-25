@@ -207,6 +207,44 @@ function selectTab(key) {
   renderForm();
   renderResult(null);
   refreshLibrary();
+  refreshTemplates();
+}
+
+async function refreshTemplates() {
+  const sel = document.getElementById("template-picker");
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Charger un modèle…</option>';
+  try {
+    const res = await fetch(`/api/templates?kind=${state.activeTab}`);
+    if (!res.ok) return;
+    const list = await res.json();
+    if (list.length === 0) {
+      const o = document.createElement("option");
+      o.disabled = true;
+      o.textContent = "(aucun modèle)";
+      sel.appendChild(o);
+      return;
+    }
+    for (const t of list) {
+      const o = document.createElement("option");
+      o.value = t.id;
+      o.textContent = t.title;
+      o.title = t.summary;
+      sel.appendChild(o);
+    }
+  } catch {
+    /* offline; ignore */
+  }
+}
+
+async function loadTemplate(id) {
+  const res = await fetch(`/api/templates/${encodeURIComponent(id)}`);
+  if (!res.ok) return;
+  const t = await res.json();
+  state.loadedCaseId = null;
+  document.getElementById("json-editor").value = JSON.stringify(t.payload, null, 2);
+  document.getElementById("input-title").textContent =
+    `Modèle — ${t.title}`;
 }
 
 function renderForm() {
@@ -765,6 +803,14 @@ async function init() {
     .getElementById("library-search")
     .addEventListener("input", () => refreshLibrary());
   document
+    .getElementById("template-picker")
+    .addEventListener("change", (ev) => {
+      const id = ev.target.value;
+      if (!id) return;
+      loadTemplate(id);
+      ev.target.value = "";
+    });
+  document
     .getElementById("auth-form")
     .addEventListener("submit", handleAuthSubmit);
   document
@@ -774,6 +820,7 @@ async function init() {
     );
   document.getElementById("btn-logout").addEventListener("click", logout);
 
+  refreshTemplates();
   const me = await fetchMe();
   if (me) {
     showSignedIn(me);

@@ -82,7 +82,15 @@ body {
   border-bottom: 1px solid #eee;
 }
 .panel-header h2 { margin: 0; font-size: 1rem; }
-.panel-actions { display: flex; gap: .4rem; }
+.panel-actions { display: flex; gap: .4rem; align-items: center; }
+.template-picker {
+  padding: .3rem .5rem;
+  border: 1px solid #d0d0c8;
+  border-radius: 3px;
+  font-size: .8rem;
+  font-family: inherit;
+  max-width: 280px;
+}
 .form {
   display: flex;
   flex-direction: column;

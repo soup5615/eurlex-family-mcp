@@ -87,6 +87,7 @@ import {
   type User,
 } from "./auth.js";
 import { ChromeNotFoundError, renderPdf } from "./pdf.js";
+import { getTemplate, listTemplates } from "./templates.js";
 import type { SuccessionCase } from "../types.js";
 import type { MatrimonialCase } from "../matrimonial/types.js";
 import type { PartnershipCase } from "../partnerships/types.js";
@@ -326,6 +327,18 @@ export function buildRoutes(): Route[] {
   add("GET", "/api/member-states/partnerships", (_req, res) =>
     json(res, 200, listPartnershipBoundStates()),
   );
+
+  // Sectoral case templates (read-only, public).
+  add("GET", "/api/templates", (req, res) => {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    const kind = url.searchParams.get("kind") as CaseKind | null;
+    json(res, 200, listTemplates(kind ? { kind } : undefined));
+  });
+  add("GET", "/api/templates/:id", (_req, res, { params }) => {
+    const t = getTemplate(params.id!);
+    if (!t) return json(res, 404, { error: "template not found" });
+    json(res, 200, t);
+  });
 
   // Case library — scoped to the current user.
   add("GET", "/api/cases", (req, res, { store, user }) => {
