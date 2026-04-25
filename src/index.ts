@@ -109,3 +109,23 @@ export {
 } from "./brussels2/memberStates.js";
 export { analyseCrisis } from "./brussels2/crisis.js";
 export type * as Brussels2 from "./brussels2/types.js";
+
+// Reg. (CE) 4/2009 — maintenance obligations + Hague Protocol 2007.
+export {
+  analyseMaintenance,
+  determineMaintenanceJurisdiction,
+  determineMaintenanceApplicableLaw,
+  checkMaintenanceTemporalScope,
+} from "./maintenance/engine.js";
+export {
+  MAINTENANCE_ARTICLES,
+  getMaintenanceArticle,
+  listMaintenanceArticles,
+} from "./maintenance/articles.js";
+export {
+  isMaintenanceBoundState,
+  listMaintenanceBoundStates,
+  maintenanceStatus,
+  protocolApplies,
+} from "./maintenance/memberStates.js";
+export type * as Maintenance from "./maintenance/types.js";

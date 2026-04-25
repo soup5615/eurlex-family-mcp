@@ -77,6 +77,14 @@ import {
 import { listBiiBoundStates } from "../brussels2/memberStates.js";
 import { analyseCrisis, type CrisisCase } from "../brussels2/crisis.js";
 
+import { analyseMaintenance } from "../maintenance/engine.js";
+import {
+  getMaintenanceArticle,
+  listMaintenanceArticles,
+} from "../maintenance/articles.js";
+import { listMaintenanceBoundStates } from "../maintenance/memberStates.js";
+import type { MaintenanceCase } from "../maintenance/types.js";
+
 import { CaseStore, type CaseKind } from "./storage.js";
 import {
   buildSessionCookie,
@@ -284,6 +292,10 @@ export function buildRoutes(): Route[] {
     json(res, 200, analyseCrisis(await readJson<CrisisCase>(req)));
   });
 
+  add("POST", "/api/maintenance/analyze", async (req, res) => {
+    json(res, 200, analyseMaintenance(await readJson<MaintenanceCase>(req)));
+  });
+
   // Reference data
   add("GET", "/api/articles/:regulation", (_req, res, { params }) => {
     const r = params.regulation;
@@ -293,6 +305,7 @@ export function buildRoutes(): Route[] {
       : r === "2016-1104" ? listPartnershipArticles()
       : r === "rome3" || r === "1259" ? listRome3Articles()
       : r === "bii" || r === "2019-1111" ? listBiiArticles()
+      : r === "4-2009" || r === "maintenance" ? listMaintenanceArticles()
       : null;
     if (!out) return json(res, 404, { error: `unknown regulation ${r}` });
     json(res, 200, out);
@@ -305,6 +318,7 @@ export function buildRoutes(): Route[] {
       : r === "2016-1104" ? getPartnershipArticle(id!)
       : r === "rome3" || r === "1259" ? getRome3Article(id!)
       : r === "bii" || r === "2019-1111" ? getBiiArticle(id!)
+      : r === "4-2009" || r === "maintenance" ? getMaintenanceArticle(id!)
       : null;
     if (!out) return json(res, 404, { error: "not found" });
     json(res, 200, out);
@@ -319,6 +333,7 @@ export function buildRoutes(): Route[] {
       : r === "2016-1103" || r === "2016-1104" ? listMatrimonialBoundStates()
       : r === "rome3" || r === "1259" ? listRome3BoundStates()
       : r === "bii" || r === "2019-1111" ? listBiiBoundStates()
+      : r === "4-2009" || r === "maintenance" ? listMaintenanceBoundStates()
       : null;
     if (!out) return json(res, 404, { error: `unknown regulation ${r}` });
     json(res, 200, out);

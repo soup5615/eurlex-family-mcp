@@ -148,6 +148,27 @@ const TABS = [
     },
   },
   {
+    key: "maintenance",
+    label: "Aliments (4/2009)",
+    analyzeUrl: "/api/maintenance/analyze",
+    example: {
+      creditor: {
+        id: "child",
+        habitualResidence: "FR",
+        nationalities: ["FR"],
+        isMinor: true,
+      },
+      debtor: {
+        id: "father",
+        habitualResidence: "DE",
+        nationalities: ["DE"],
+      },
+      relation: "child",
+      forumState: "FR",
+      dateCourtSeised: "2024-04-01",
+    },
+  },
+  {
     key: "crisis",
     label: "Crise conjugale",
     analyzeUrl: "/api/crisis/analyze",

@@ -14,6 +14,7 @@ import type {
 } from "../brussels2/types.js";
 import type { CombinedCase } from "../matrimonial/combined.js";
 import type { CrisisCase } from "../brussels2/crisis.js";
+import type { MaintenanceCase } from "../maintenance/types.js";
 import type { CaseKind } from "./storage.js";
 
 export interface CaseTemplate<Payload = unknown> {
@@ -399,6 +400,79 @@ export const TEMPLATES: CaseTemplate[] = [
         habitualResidence: "FR",
       },
     } satisfies CombinedCase,
+  },
+
+  // ─── Aliments (Règl. 4/2009 + Protocole 2007) ────────────────────
+  {
+    id: "main-child-fr-de",
+    kind: "maintenance",
+    title: "Aliments — enfant FR vs père en DE",
+    summary:
+      "Pension alimentaire pour un enfant mineur résidant en France réclamée à son père installé en Allemagne. Saisine du juge français.",
+    tags: ["4/2009", "P.3", "child", "FR-DE"],
+    payload: {
+      creditor: {
+        id: "child",
+        habitualResidence: "FR",
+        nationalities: ["FR"],
+        isMinor: true,
+      },
+      debtor: {
+        id: "father",
+        habitualResidence: "DE",
+        nationalities: ["DE"],
+      },
+      relation: "child",
+      forumState: "FR",
+      dateCourtSeised: "2024-04-01",
+    } satisfies MaintenanceCase,
+  },
+  {
+    id: "main-spouse-it-fr-objection",
+    kind: "maintenance",
+    title: "Aliments — entre époux IT-FR avec opposition art. 5",
+    summary:
+      "Demande d'aliments entre ex-époux résidant respectivement en Italie et en France ; le débiteur invoque la loi italienne (dernière RH commune).",
+    tags: ["4/2009", "P.5", "spouse"],
+    payload: {
+      creditor: {
+        id: "wife",
+        habitualResidence: "FR",
+        nationalities: ["FR"],
+      },
+      debtor: {
+        id: "husband",
+        habitualResidence: "IT",
+        nationalities: ["IT"],
+      },
+      relation: "former-spouse",
+      forumState: "FR",
+      dateCourtSeised: "2024-04-01",
+      spouseObjection: { closerConnectionWith: "IT" },
+    } satisfies MaintenanceCase,
+  },
+  {
+    id: "main-elder-care-fr-pt",
+    kind: "maintenance",
+    title: "Aliments — parent âgé en PT, enfant en FR",
+    summary:
+      "Parent portugais résidant au Portugal sollicitant des aliments de son enfant adulte établi en France.",
+    tags: ["4/2009", "P.3", "ascendant"],
+    payload: {
+      creditor: {
+        id: "mother",
+        habitualResidence: "PT",
+        nationalities: ["PT"],
+      },
+      debtor: {
+        id: "son",
+        habitualResidence: "FR",
+        nationalities: ["PT", "FR"],
+      },
+      relation: "ascendant",
+      forumState: "FR",
+      dateCourtSeised: "2024-04-01",
+    } satisfies MaintenanceCase,
   },
 
   // ─── Crise conjugale (crisis) ────────────────────────────────────

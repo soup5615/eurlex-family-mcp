@@ -53,6 +53,17 @@ import {
 } from "../brussels2/articles.js";
 import { listBiiBoundStates } from "../brussels2/memberStates.js";
 import { analyseCrisis, type CrisisCase } from "../brussels2/crisis.js";
+
+import { analyseMaintenance } from "../maintenance/engine.js";
+import {
+  getMaintenanceArticle,
+  listMaintenanceArticles,
+} from "../maintenance/articles.js";
+import {
+  listMaintenanceBoundStates,
+  maintenanceStatus,
+} from "../maintenance/memberStates.js";
+import type { MaintenanceCase } from "../maintenance/types.js";
 import type { Disposition, SuccessionCase } from "../types.js";
 import type { MatrimonialCase } from "../matrimonial/types.js";
 import type { PartnershipCase } from "../partnerships/types.js";
@@ -960,6 +971,111 @@ export function buildServer(): McpServer {
       },
     },
     async (input) => asText(analyseCrisis(input as CrisisCase)),
+  );
+
+  // -----------------------------------------------------------------
+  // Brique 5 — Reg. 4/2009 + Hague Protocol 2007 (maintenance)
+  // -----------------------------------------------------------------
+  const MaintenancePerson = z.object({
+    id: z.string(),
+    habitualResidence: CountryCode,
+    nationalities: z.array(CountryCode),
+    isMinor: z.boolean().optional(),
+  });
+
+  const MaintenanceCaseShape = {
+    creditor: MaintenancePerson,
+    debtor: MaintenancePerson,
+    relation: z.enum(["child", "spouse", "former-spouse", "ascendant", "other-family"]),
+    forumState: CountryCode,
+    dateCourtSeised: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    relatedStatusProceedingsIn: CountryCode.optional(),
+    relatedStatusProceedingsBasedOnNationalityOnly: z.boolean().optional(),
+    relatedParentalProceedingsIn: CountryCode.optional(),
+    relatedParentalProceedingsBasedOnNationalityOnly: z.boolean().optional(),
+    choiceOfCourt: z
+      .object({
+        forumState: CountryCode,
+        inWritingDatedSigned: z.boolean(),
+        exclusive: z.boolean().optional(),
+      })
+      .optional(),
+    choiceOfLaw: z
+      .object({
+        chosenLaw: CountryCode,
+        scope: z.enum(["specific-proceedings", "general"]),
+        inWritingDatedSigned: z.boolean().optional(),
+      })
+      .optional(),
+    spouseObjection: z
+      .object({ closerConnectionWith: CountryCode })
+      .optional(),
+    hrCreditorLawAllowsMaintenance: z.boolean().optional(),
+    forumLawAllowsMaintenance: z.boolean().optional(),
+  };
+
+  server.registerTool(
+    "analyze_maintenance",
+    {
+      title: "Analyser une obligation alimentaire (Règl. 4/2009 + Protocole 2007)",
+      description:
+        "Analyse complète : champ temporel (art. 75), compétence (art. 3-7 du règlement), loi applicable (Protocole de La Haye 2007 art. 3-8) avec cascade créanciers privilégiés et exception époux.",
+      inputSchema: MaintenanceCaseShape,
+    },
+    async (input) => asText(analyseMaintenance(input as MaintenanceCase)),
+  );
+
+  server.registerTool(
+    "get_maintenance_article",
+    {
+      title: "Résumé d'un article du Règl. 4/2009 ou du Protocole 2007",
+      description:
+        "Renvoie le résumé d'un article. Préfixer 'P.' pour les articles du Protocole de La Haye (ex. P.3, P.4, P.8).",
+      inputSchema: { articleNumber: z.string() },
+    },
+    async ({ articleNumber }) => {
+      const a = getMaintenanceArticle(articleNumber);
+      if (!a) return asText({ error: `Article ${articleNumber} non trouvé.` });
+      return asText(a);
+    },
+  );
+
+  server.registerTool(
+    "list_maintenance_articles",
+    {
+      title: "Liste des articles maintenance référencés",
+      description:
+        "Liste les articles du Règl. 4/2009 et du Protocole de La Haye 2007 disponibles dans le moteur.",
+      inputSchema: {},
+    },
+    async () => asText(listMaintenanceArticles()),
+  );
+
+  server.registerTool(
+    "list_maintenance_member_states",
+    {
+      title: "États liés par le Règl. 4/2009",
+      description:
+        "Liste les 27 EM. Note : DK est lié pour la compétence et l'exécution mais pas pour la loi applicable (Protocole 2007 non ratifié).",
+      inputSchema: {},
+    },
+    async () => asText(listMaintenanceBoundStates()),
+  );
+
+  server.registerTool(
+    "maintenance_state_status",
+    {
+      title: "Statut d'un pays pour le règl. 4/2009 / Protocole 2007",
+      description:
+        "Renvoie 'bound-full' (EM lié), 'bound-no-protocol' (DK : règl. mais pas Protocole), ou 'third-state'.",
+      inputSchema: { country: CountryCode },
+    },
+    async ({ country }) => {
+      return asText({
+        country: country.toUpperCase(),
+        status: maintenanceStatus(country),
+      });
+    },
   );
 
   return server;

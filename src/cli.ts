@@ -34,6 +34,12 @@ import {
 import { getBiiArticle, listBiiArticles } from "./brussels2/articles.js";
 import { listBiiBoundStates } from "./brussels2/memberStates.js";
 import { analyseCrisis, type CrisisCase } from "./brussels2/crisis.js";
+import { analyseMaintenance } from "./maintenance/engine.js";
+import {
+  getMaintenanceArticle,
+  listMaintenanceArticles,
+} from "./maintenance/articles.js";
+import { listMaintenanceBoundStates } from "./maintenance/memberStates.js";
 import type { SuccessionCase, SuccessionAnalysis } from "./types.js";
 import type { MatrimonialCase, MatrimonialAnalysis } from "./matrimonial/types.js";
 import type { PartnershipCase } from "./partnerships/types.js";
@@ -42,6 +48,7 @@ import type {
   BiiMatrimonialCase,
   BiiParentalResponsibilityCase,
 } from "./brussels2/types.js";
+import type { MaintenanceCase } from "./maintenance/types.js";
 
 const USAGE = `eurlex-family — moteur de qualification du Règl. (UE) 650/2012
 
@@ -89,6 +96,12 @@ Matières matrimoniales et responsabilité parentale (Bruxelles II ter, Règl. U
 
 Analyse combinée crise conjugale (compétence + loi divorce + régime + parental) :
   crisis analyze [--file <case.json>]
+
+Aliments (Règl. 4/2009 + Protocole de La Haye 2007) :
+  maintenance analyze [--file <case.json>]
+  maintenance article <numéro|P.numéro>
+  maintenance articles
+  maintenance states
 
   help                           Affiche cette aide.
 
@@ -606,6 +619,42 @@ async function runCrisis(args: string[]): Promise<number> {
   return 2;
 }
 
+async function runMaintenance(args: string[]): Promise<number> {
+  const sub = args[0];
+  if (!sub || sub === "help") {
+    process.stdout.write("maintenance analyze|article|articles|states\n");
+    return 0;
+  }
+  if (sub === "analyze") {
+    const input = await readJson<MaintenanceCase>(args.slice(1));
+    process.stdout.write(JSON.stringify(analyseMaintenance(input), null, 2) + "\n");
+    return 0;
+  }
+  if (sub === "article") {
+    const id = args[1];
+    if (!id) throw new Error("Numéro d'article requis (ex. 3, 15, P.4).");
+    const art = getMaintenanceArticle(id);
+    if (!art) {
+      process.stderr.write(`Article ${id} non trouvé.\n`);
+      return 1;
+    }
+    process.stdout.write(`${art.id} — ${art.title}\n${art.summary}\n`);
+    return 0;
+  }
+  if (sub === "articles") {
+    for (const art of listMaintenanceArticles()) {
+      process.stdout.write(`${art.id.padEnd(28)} ${art.title}\n`);
+    }
+    return 0;
+  }
+  if (sub === "states") {
+    process.stdout.write(listMaintenanceBoundStates().join(" ") + "\n");
+    return 0;
+  }
+  process.stderr.write(`Sous-commande maintenance inconnue : ${sub}\n`);
+  return 2;
+}
+
 async function runConsultation(args: string[]): Promise<void> {
   const input = await readCase(args);
   const analysis = analyseSuccession(input);
@@ -674,6 +723,10 @@ async function main(): Promise<number> {
 
   if (cmd === "crisis") {
     return runCrisis(args.slice(1));
+  }
+
+  if (cmd === "maintenance") {
+    return runMaintenance(args.slice(1));
   }
 
   if (cmd === "article") {
