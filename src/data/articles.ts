@@ -2,10 +2,17 @@
 // Regulation (EU) No 650/2012. Summaries, not official text — for
 // reasoning / documentation only. Authoritative text: EUR-Lex 32012R0650.
 
+import { regulationSource } from "./sources.js";
+
+const REGULATION_KEY = "650-2012" as const;
+
 export interface ArticleSummary {
   id: string;
   title: string;
   summary: string;
+  // Computed on read.
+  regulation?: string;
+  officialUrl?: string;
 }
 
 export const ARTICLES: Record<string, ArticleSummary> = {
@@ -131,10 +138,16 @@ export const ARTICLES: Record<string, ArticleSummary> = {
   },
 };
 
+function decorate(a: ArticleSummary): ArticleSummary {
+  const src = regulationSource(REGULATION_KEY);
+  return { ...a, regulation: src.shortTitle, officialUrl: src.officialUrl };
+}
+
 export function getArticle(id: string): ArticleSummary | undefined {
-  return ARTICLES[id.replace(/[^0-9]/g, "")];
+  const raw = ARTICLES[id.replace(/[^0-9]/g, "")];
+  return raw ? decorate(raw) : undefined;
 }
 
 export function listArticles(): ArticleSummary[] {
-  return Object.values(ARTICLES);
+  return Object.values(ARTICLES).map(decorate);
 }

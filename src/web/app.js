@@ -2,6 +2,8 @@
 // Vanilla ESM — no build step. Fetches the REST API exposed by
 // src/server/server.ts.
 
+import { gatherForm, renderSchema, SCHEMAS } from "/forms.js";
+
 const TABS = [
   {
     key: "succession",
@@ -221,7 +223,7 @@ function selectTab(key) {
   state.activeTab = key;
   state.loadedCaseId = null;
   state.lastAnalysis = null;
-  state.lastPayload = null;
+  state.lastPayload = findTab(key).example;
   document.getElementById("input-title").textContent =
     `Saisie du cas — ${findTab(key).label}`;
   renderTabs();
@@ -263,45 +265,83 @@ async function loadTemplate(id) {
   if (!res.ok) return;
   const t = await res.json();
   state.loadedCaseId = null;
-  document.getElementById("json-editor").value = JSON.stringify(t.payload, null, 2);
+  state.lastPayload = t.payload;
+  renderForm();
   document.getElementById("input-title").textContent =
     `Modèle — ${t.title}`;
 }
+
+// Per-tab UI mode: "form" (default) or "json" (advanced fallback).
+const formMode = {};
 
 function renderForm() {
   const tab = findTab(state.activeTab);
   const form = document.getElementById("case-form");
   form.innerHTML = "";
 
+  const mode = formMode[tab.key] ?? "form";
+  const schema = SCHEMAS[tab.key];
+
+  // Header with mode toggle.
+  const header = document.createElement("div");
+  header.className = "form-mode-header";
   const help = document.createElement("p");
   help.className = "muted";
   help.style.fontSize = ".8rem";
+  help.style.margin = "0";
   help.textContent =
-    "Éditez le JSON ci-dessous (conforme au schéma interne). Un exemple typique est préchargé.";
-  form.appendChild(help);
+    mode === "form"
+      ? "Renseignez les champs ci-dessous. Les sections optionnelles sont activables via la case « inclure »."
+      : "Mode avancé : éditez directement le JSON conforme au schéma interne.";
+  header.appendChild(help);
+  if (schema) {
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "btn";
+    toggle.textContent = mode === "form" ? "Mode JSON ▸" : "Mode formulaire ▸";
+    toggle.addEventListener("click", () => switchMode(tab.key, mode === "form" ? "json" : "form"));
+    header.appendChild(toggle);
+  }
+  form.appendChild(header);
 
-  const ta = document.createElement("textarea");
-  ta.id = "json-editor";
-  ta.rows = 22;
-  ta.style.fontFamily = "ui-monospace,SFMono-Regular,Menlo,monospace";
-  ta.style.fontSize = ".8rem";
-  ta.style.width = "100%";
-  ta.value = JSON.stringify(tab.example, null, 2);
-  form.appendChild(ta);
+  // Initial payload: loaded case > current value > example.
+  let initial = state.lastPayload ?? tab.example;
 
-  const err = document.createElement("div");
-  err.id = "json-error";
-  err.style.color = "#c33";
-  err.style.fontSize = ".8rem";
-  err.style.marginTop = ".3rem";
-  form.appendChild(err);
+  const renderUi = (payload) => {
+    if (mode === "form" && schema) {
+      const container = document.createElement("div");
+      container.id = "form-container";
+      form.appendChild(container);
+      renderSchema(container, schema, payload);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.id = "json-editor";
+      ta.rows = 22;
+      ta.style.fontFamily = "ui-monospace,SFMono-Regular,Menlo,monospace";
+      ta.style.fontSize = ".8rem";
+      ta.style.width = "100%";
+      ta.value = JSON.stringify(payload, null, 2);
+      form.appendChild(ta);
+      const err = document.createElement("div");
+      err.id = "json-error";
+      err.style.color = "#c33";
+      err.style.fontSize = ".8rem";
+      err.style.marginTop = ".3rem";
+      form.appendChild(err);
+    }
+  };
 
-  // Keep in sync when loading a case.
+  renderUi(initial);
+
+  // If we are showing a loaded case, fetch its payload then re-render.
   if (state.loadedCaseId) {
     fetch(`/api/cases/${state.loadedCaseId}`)
       .then((r) => r.json())
       .then((c) => {
-        ta.value = JSON.stringify(c.payload, null, 2);
+        // Wipe and re-render with the fetched payload.
+        form.innerHTML = "";
+        form.appendChild(header);
+        renderUi(c.payload);
       })
       .catch(() => {});
   }
@@ -312,14 +352,34 @@ function renderForm() {
   document.getElementById("btn-versions").hidden = !state.loadedCaseId;
 }
 
-function readPayload() {
+function switchMode(tabKey, nextMode) {
+  // Capture the current payload before switching.
+  const current = readPayload({ silent: true });
+  formMode[tabKey] = nextMode;
+  if (current) state.lastPayload = current;
+  renderForm();
+}
+
+function readPayload(opts = {}) {
+  const tab = findTab(state.activeTab);
+  const mode = formMode[tab.key] ?? "form";
+  if (mode === "form") {
+    const c = document.getElementById("form-container");
+    if (!c) return null;
+    try {
+      return gatherForm(c) ?? {};
+    } catch (e) {
+      if (!opts.silent) alert(`Erreur de saisie : ${e.message}`);
+      return null;
+    }
+  }
   const ta = document.getElementById("json-editor");
   const errEl = document.getElementById("json-error");
-  errEl.textContent = "";
+  if (errEl) errEl.textContent = "";
   try {
     return JSON.parse(ta.value);
   } catch (e) {
-    errEl.textContent = `JSON invalide : ${e.message}`;
+    if (errEl && !opts.silent) errEl.textContent = `JSON invalide : ${e.message}`;
     return null;
   }
 }
@@ -642,11 +702,11 @@ async function loadCase(id) {
   const c = await res.json();
   state.loadedCaseId = id;
   state.activeTab = c.kind;
+  state.lastPayload = c.payload;
   renderTabs();
   renderForm();
   document.getElementById("input-title").textContent =
     `Cas chargé — ${c.title}`;
-  document.getElementById("json-editor").value = JSON.stringify(c.payload, null, 2);
   document.getElementById("btn-versions").hidden = false;
 }
 
@@ -710,7 +770,8 @@ async function handleVersionsClick(ev) {
     );
     if (!res.ok) return;
     const c = await res.json();
-    document.getElementById("json-editor").value = JSON.stringify(c.payload, null, 2);
+    state.lastPayload = c.payload;
+    renderForm();
     document.getElementById("versions-dialog").close();
     refreshLibrary();
   }

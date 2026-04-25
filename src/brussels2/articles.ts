@@ -1,10 +1,16 @@
 // Key articles of Regulation (EU) 2019/1111 (Brussels IIter).
 // Summaries only — authoritative text on EUR-Lex 32019R1111.
 
+import { regulationSource } from "../data/sources.js";
+
+const REGULATION_KEY = "2019-1111" as const;
+
 export interface BiiArticleSummary {
   id: string;
   title: string;
   summary: string;
+  regulation?: string;
+  officialUrl?: string;
 }
 
 export const BII_ARTICLES: Record<string, BiiArticleSummary> = {
@@ -100,10 +106,16 @@ export const BII_ARTICLES: Record<string, BiiArticleSummary> = {
   },
 };
 
+function decorate(a: BiiArticleSummary): BiiArticleSummary {
+  const src = regulationSource(REGULATION_KEY);
+  return { ...a, regulation: src.shortTitle, officialUrl: src.officialUrl };
+}
+
 export function getBiiArticle(id: string): BiiArticleSummary | undefined {
-  return BII_ARTICLES[id.replace(/[^0-9]/g, "")];
+  const raw = BII_ARTICLES[id.replace(/[^0-9]/g, "")];
+  return raw ? decorate(raw) : undefined;
 }
 
 export function listBiiArticles(): BiiArticleSummary[] {
-  return Object.values(BII_ARTICLES);
+  return Object.values(BII_ARTICLES).map(decorate);
 }

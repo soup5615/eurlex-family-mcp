@@ -1,10 +1,16 @@
 // Key articles of Regulation (EU) No 1259/2010 (Rome III).
 // Summaries only — authoritative text on EUR-Lex 32010R1259.
 
+import { regulationSource } from "../data/sources.js";
+
+const REGULATION_KEY = "1259-2010" as const;
+
 export interface Rome3ArticleSummary {
   id: string;
   title: string;
   summary: string;
+  regulation?: string;
+  officialUrl?: string;
 }
 
 export const ROME3_ARTICLES: Record<string, Rome3ArticleSummary> = {
@@ -88,10 +94,16 @@ export const ROME3_ARTICLES: Record<string, Rome3ArticleSummary> = {
   },
 };
 
+function decorate(a: Rome3ArticleSummary): Rome3ArticleSummary {
+  const src = regulationSource(REGULATION_KEY);
+  return { ...a, regulation: src.shortTitle, officialUrl: src.officialUrl };
+}
+
 export function getRome3Article(id: string): Rome3ArticleSummary | undefined {
-  return ROME3_ARTICLES[id.replace(/[^0-9]/g, "")];
+  const raw = ROME3_ARTICLES[id.replace(/[^0-9]/g, "")];
+  return raw ? decorate(raw) : undefined;
 }
 
 export function listRome3Articles(): Rome3ArticleSummary[] {
-  return Object.values(ROME3_ARTICLES);
+  return Object.values(ROME3_ARTICLES).map(decorate);
 }

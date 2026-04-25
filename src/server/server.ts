@@ -85,6 +85,12 @@ import {
 import { listMaintenanceBoundStates } from "../maintenance/memberStates.js";
 import type { MaintenanceCase } from "../maintenance/types.js";
 
+import {
+  DOCTRINE,
+  listDoctrine,
+  regulationSource,
+  type RegulationKey,
+} from "../data/sources.js";
 import { CaseStore, type CaseKind } from "./storage.js";
 import {
   buildSessionCookie,
@@ -325,6 +331,18 @@ export function buildRoutes(): Route[] {
   });
 
   add("GET", "/api/cjeu-cases", (_req, res) => json(res, 200, CJEU_CASES));
+
+  add("GET", "/api/doctrine", (_req, res) => json(res, 200, DOCTRINE));
+  add("GET", "/api/doctrine/:regulation", (_req, res, { params }) => {
+    const r = params.regulation as RegulationKey;
+    if (!(r in DOCTRINE)) {
+      return json(res, 404, { error: `unknown regulation ${r}` });
+    }
+    json(res, 200, {
+      regulation: regulationSource(r),
+      doctrine: listDoctrine(r),
+    });
+  });
 
   add("GET", "/api/member-states/:regulation", (_req, res, { params }) => {
     const r = params.regulation;

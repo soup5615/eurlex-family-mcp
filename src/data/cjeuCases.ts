@@ -1,6 +1,8 @@
 // Key CJEU judgments interpreting Regulation (EU) No 650/2012.
 // Summaries are informational; read the full judgments on curia.europa.eu.
 
+import { curiaCaseUrl } from "./sources.js";
+
 export interface CjeuCase {
   caseNumber: string;
   name: string;
@@ -8,9 +10,19 @@ export interface CjeuCase {
   articles: string[];
   holding: string;
   relevance: string;
+  curiaUrl: string;
 }
 
-export const CJEU_CASES: CjeuCase[] = [
+interface RawCjeuCase {
+  caseNumber: string;
+  name: string;
+  date: string;
+  articles: string[];
+  holding: string;
+  relevance: string;
+}
+
+const RAW_CJEU_CASES: RawCjeuCase[] = [
   {
     caseNumber: "C-558/16",
     name: "Mahnkopf",
@@ -82,6 +94,11 @@ export const CJEU_CASES: CjeuCase[] = [
       "Caractère impératif des compétences subsidiaires — le juge doit relever d'office sa compétence.",
   },
 ];
+
+export const CJEU_CASES: CjeuCase[] = RAW_CJEU_CASES.map((c) => ({
+  ...c,
+  curiaUrl: curiaCaseUrl(c.caseNumber),
+}));
 
 export function findCase(id: string): CjeuCase | undefined {
   const norm = (s: string) => s.toUpperCase().replace(/\s+/g, "");

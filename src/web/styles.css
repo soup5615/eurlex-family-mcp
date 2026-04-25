@@ -128,6 +128,56 @@ body {
   outline-offset: 1px;
 }
 .form input[type="checkbox"] { width: auto; }
+.form-mode-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-bottom: .5rem;
+}
+.form-object > legend { display: flex; align-items: center; gap: .5rem; }
+.form-toggle {
+  font-size: .75rem;
+  color: #555;
+  font-weight: normal;
+}
+.form-list {
+  border: 1px solid #e0e0d9;
+  border-radius: 4px;
+  padding: .6rem .8rem .8rem;
+  margin: 0;
+}
+.form-list > legend { font-weight: 600; font-size: .85rem; color: #444; padding: 0 .3rem; }
+.form-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+.form-list-item {
+  position: relative;
+  border-left: 2px solid #d4a017;
+  padding: .4rem .6rem;
+  background: #fafaf6;
+  border-radius: 3px;
+}
+.form-list-item > .btn {
+  position: absolute;
+  top: .3rem;
+  right: .3rem;
+  font-size: .75rem;
+  padding: .15rem .4rem;
+  background: #fff;
+  border-color: #ddd;
+}
+.form-checkbox { display: flex; align-items: center; gap: .35rem; font-size: .85rem; }
+.form-hint {
+  font-size: .75rem;
+  color: #777;
+  margin-top: .1rem;
+}
+.form-country-list { display: flex; flex-direction: column; gap: .25rem; font-size: .85rem; }
+.chip-add { display: flex; gap: .25rem; }
+.chip-add input { flex: 1; }
 .chip-list {
   display: flex;
   flex-wrap: wrap;

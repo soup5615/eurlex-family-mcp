@@ -1,4 +1,42 @@
 import type { ReasoningStep, SuccessionAnalysis } from "../types.js";
+import {
+  listDoctrine,
+  regulationSource,
+  type DoctrineEntry,
+  type RegulationKey,
+} from "../data/sources.js";
+
+function sourcesBlock(keys: RegulationKey[]): string {
+  const sections = keys.map((key) => {
+    const src = regulationSource(key);
+    const doctrine = listDoctrine(key);
+    const docHtml = doctrine.length
+      ? `<ul class="doctrine">${doctrine
+          .map(
+            (d: DoctrineEntry) => `<li>
+              <strong>${esc(d.authors)}</strong>, <em>${esc(d.title)}</em>,
+              ${esc(d.publisher)}, ${d.year}
+              ${d.url ? ` — <a href="${esc(d.url)}" target="_blank" rel="noopener">accès libre</a>` : ""}
+              ${d.notes ? `<div class="muted">${esc(d.notes)}</div>` : ""}
+            </li>`,
+          )
+          .join("")}</ul>`
+      : "";
+    return `<div class="src-section">
+      <h3>${esc(src.shortTitle)}</h3>
+      <p><a href="${esc(src.officialUrl)}" target="_blank" rel="noopener">Texte officiel (EUR-Lex / HCCH)</a>${
+        src.consolidatedUrl
+          ? ` · <a href="${esc(src.consolidatedUrl)}" target="_blank" rel="noopener">Version consolidée</a>`
+          : ""
+      }</p>
+      ${docHtml}
+    </div>`;
+  });
+  return `<section class="sources">
+    <h2>Sources &amp; doctrine</h2>
+    ${sections.join("")}
+  </section>`;
+}
 
 function esc(s: string): string {
   return s
@@ -93,6 +131,10 @@ export function renderConsultationHTML(
   .flags { background: #fff7e6; padding: 0.8rem 1rem; border-left: 3px solid #cc8800; }
   footer { margin-top: 3rem; color: #777; font-size: 0.85em; border-top: 1px solid #ddd; padding-top: 1rem; }
   .disposition { border-left: 2px solid #ccc; padding-left: 1rem; margin: 1rem 0; }
+  .sources h3 { font-size: .95rem; margin: 1rem 0 .3rem; }
+  .sources .src-section { margin-bottom: 1rem; }
+  .doctrine { padding-left: 1.2rem; }
+  .doctrine li { margin-bottom: .35rem; font-size: .9rem; }
 </style>
 </head>
 <body>
@@ -147,10 +189,11 @@ export function renderConsultationHTML(
 
   ${a.flags.length > 0 ? `<section><h2>Points de vigilance</h2><div class="flags"><ul>${a.flags.map((f) => `<li>${esc(f)}</li>`).join("")}</ul></div></section>` : ""}
 
+  ${sourcesBlock(["650-2012"])}
+
   <footer>
     Consultation générée par eurlex-family-mcp. Outil d'aide à la décision — ne se
-    substitue pas à l'analyse d'un professionnel du droit. Textes officiels :
-    EUR-Lex 32012R0650, curia.europa.eu.
+    substitue pas à l'analyse d'un professionnel du droit.
   </footer>
 </body>
 </html>`;

@@ -2,10 +2,14 @@
 // of the Hague Protocol of 23 November 2007. Summaries only —
 // authoritative texts: EUR-Lex 32009R0004 and HCCH conventions.
 
+import { regulationSource } from "../data/sources.js";
+
 export interface MaintenanceArticleSummary {
   id: string;
   title: string;
   summary: string;
+  regulation?: string;
+  officialUrl?: string;
 }
 
 export const MAINTENANCE_ARTICLES: Record<string, MaintenanceArticleSummary> = {
@@ -121,16 +125,30 @@ export const MAINTENANCE_ARTICLES: Record<string, MaintenanceArticleSummary> = {
   },
 };
 
+function decorate(
+  rawKey: string,
+  a: MaintenanceArticleSummary,
+): MaintenanceArticleSummary {
+  const src = rawKey.startsWith("P.")
+    ? regulationSource("hague-protocol-2007")
+    : regulationSource("4-2009");
+  return { ...a, regulation: src.shortTitle, officialUrl: src.officialUrl };
+}
+
 export function getMaintenanceArticle(id: string): MaintenanceArticleSummary | undefined {
-  // Accept "P.3" / "P3" / "P 3" for Protocol references, plain numbers
-  // (e.g. "3", "15") for the Regulation.
   const key = id.toUpperCase().replace(/\s+/g, "");
-  if (MAINTENANCE_ARTICLES[key]) return MAINTENANCE_ARTICLES[key];
+  if (MAINTENANCE_ARTICLES[key]) return decorate(key, MAINTENANCE_ARTICLES[key]);
   const pmatch = key.match(/^P\.?(\d+)$/);
-  if (pmatch) return MAINTENANCE_ARTICLES[`P.${pmatch[1]}`];
-  return MAINTENANCE_ARTICLES[id.replace(/[^0-9]/g, "")];
+  if (pmatch) {
+    const k = `P.${pmatch[1]}`;
+    return MAINTENANCE_ARTICLES[k] ? decorate(k, MAINTENANCE_ARTICLES[k]) : undefined;
+  }
+  const num = id.replace(/[^0-9]/g, "");
+  return MAINTENANCE_ARTICLES[num]
+    ? decorate(num, MAINTENANCE_ARTICLES[num])
+    : undefined;
 }
 
 export function listMaintenanceArticles(): MaintenanceArticleSummary[] {
-  return Object.values(MAINTENANCE_ARTICLES);
+  return Object.entries(MAINTENANCE_ARTICLES).map(([k, a]) => decorate(k, a));
 }

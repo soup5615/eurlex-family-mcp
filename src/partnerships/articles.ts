@@ -1,10 +1,16 @@
 // Key articles of Regulation (EU) 2016/1104 (registered partnerships).
 // Summaries only — authoritative text on EUR-Lex 32016R1104.
 
+import { regulationSource } from "../data/sources.js";
+
+const REGULATION_KEY = "2016-1104" as const;
+
 export interface PartnershipArticleSummary {
   id: string;
   title: string;
   summary: string;
+  regulation?: string;
+  officialUrl?: string;
 }
 
 export const PARTNERSHIP_ARTICLES: Record<string, PartnershipArticleSummary> = {
@@ -124,12 +130,18 @@ export const PARTNERSHIP_ARTICLES: Record<string, PartnershipArticleSummary> = {
   },
 };
 
+function decorate(a: PartnershipArticleSummary): PartnershipArticleSummary {
+  const src = regulationSource(REGULATION_KEY);
+  return { ...a, regulation: src.shortTitle, officialUrl: src.officialUrl };
+}
+
 export function getPartnershipArticle(
   id: string,
 ): PartnershipArticleSummary | undefined {
-  return PARTNERSHIP_ARTICLES[id.replace(/[^0-9]/g, "")];
+  const raw = PARTNERSHIP_ARTICLES[id.replace(/[^0-9]/g, "")];
+  return raw ? decorate(raw) : undefined;
 }
 
 export function listPartnershipArticles(): PartnershipArticleSummary[] {
-  return Object.values(PARTNERSHIP_ARTICLES);
+  return Object.values(PARTNERSHIP_ARTICLES).map(decorate);
 }

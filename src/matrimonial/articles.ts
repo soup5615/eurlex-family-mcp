@@ -1,10 +1,16 @@
 // Concise French-language summaries of the core articles of
 // Regulation (EU) 2016/1103. Summaries, not official text.
 
+import { regulationSource } from "../data/sources.js";
+
+const REGULATION_KEY = "2016-1103" as const;
+
 export interface MatrimonialArticleSummary {
   id: string;
   title: string;
   summary: string;
+  regulation?: string;
+  officialUrl?: string;
 }
 
 export const MATRIMONIAL_ARTICLES: Record<string, MatrimonialArticleSummary> = {
@@ -148,12 +154,18 @@ export const MATRIMONIAL_ARTICLES: Record<string, MatrimonialArticleSummary> = {
   },
 };
 
+function decorate(a: MatrimonialArticleSummary): MatrimonialArticleSummary {
+  const src = regulationSource(REGULATION_KEY);
+  return { ...a, regulation: src.shortTitle, officialUrl: src.officialUrl };
+}
+
 export function getMatrimonialArticle(
   id: string,
 ): MatrimonialArticleSummary | undefined {
-  return MATRIMONIAL_ARTICLES[id.replace(/[^0-9]/g, "")];
+  const raw = MATRIMONIAL_ARTICLES[id.replace(/[^0-9]/g, "")];
+  return raw ? decorate(raw) : undefined;
 }
 
 export function listMatrimonialArticles(): MatrimonialArticleSummary[] {
-  return Object.values(MATRIMONIAL_ARTICLES);
+  return Object.values(MATRIMONIAL_ARTICLES).map(decorate);
 }
