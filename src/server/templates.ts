@@ -15,6 +15,8 @@ import type {
 import type { CombinedCase } from "../matrimonial/combined.js";
 import type { CrisisCase } from "../brussels2/crisis.js";
 import type { MaintenanceCase } from "../maintenance/types.js";
+import type { RecognitionCase } from "../recognition/engine.js";
+import type { Hague1980Case } from "../hague1980/engine.js";
 import type { CaseKind } from "./storage.js";
 
 export interface CaseTemplate<Payload = unknown> {
@@ -473,6 +475,133 @@ export const TEMPLATES: CaseTemplate[] = [
       forumState: "FR",
       dateCourtSeised: "2024-04-01",
     } satisfies MaintenanceCase,
+  },
+
+  // ─── Reconnaissance & exécution ──────────────────────────────────
+  {
+    id: "rec-r650-judgment-de-fr",
+    kind: "recognition",
+    title: "Reconnaissance — décision successorale DE en FR (R 650)",
+    summary:
+      "Décision juridictionnelle successorale rendue en Allemagne, à invoquer/exécuter en France. Reconnaissance auto art. 39 ; déclaration d'exécution art. 43.",
+    tags: ["650/2012", "reconnaissance", "exéquatur"],
+    payload: {
+      instrument: {
+        regulation: "650-2012",
+        kind: "judgment",
+        originState: "DE",
+        issuedOn: "2023-06-01",
+      },
+      forumState: "FR",
+    } satisfies RecognitionCase,
+  },
+  {
+    id: "rec-r4-protocol-fr",
+    kind: "recognition",
+    title: "Aliments — décision FR à exécuter en DE (Section 1, R 4/2009)",
+    summary:
+      "Origine FR (lié au Protocole 2007). Reconnaissance et exécution sans aucune procédure (art. 17, 20). Refus uniquement sur les motifs limités de l'art. 21.",
+    tags: ["4/2009", "Protocole 2007", "reconnaissance directe"],
+    payload: {
+      instrument: {
+        regulation: "4-2009",
+        kind: "judgment",
+        originState: "FR",
+        issuedOn: "2023-09-15",
+      },
+      forumState: "DE",
+      originBoundByHagueProtocol: true,
+    } satisfies RecognitionCase,
+  },
+  {
+    id: "rec-bii-parental",
+    kind: "recognition",
+    title: "Décision parentale IT en FR (B IIter — exéquatur aboli)",
+    summary:
+      "Décision en matière de responsabilité parentale rendue en Italie. Bruxelles II ter abolit l'exéquatur (art. 30, 34) — exécution directe avec annexe III.",
+    tags: ["2019/1111", "parental", "exéquatur aboli"],
+    payload: {
+      instrument: {
+        regulation: "2019-1111",
+        kind: "judgment",
+        originState: "IT",
+        issuedOn: "2023-04-01",
+      },
+      forumState: "FR",
+    } satisfies RecognitionCase,
+  },
+  {
+    id: "rec-r4-section2-dk",
+    kind: "recognition",
+    title: "Aliments DK → FR (Section 2 R 4/2009 — exéquatur conservé)",
+    summary:
+      "Origine DK (non lié par le Protocole 2007). Procédure d'exequatur de la Section 2 ; motifs de refus étendus (art. 24).",
+    tags: ["4/2009", "DK", "Section 2", "exéquatur"],
+    payload: {
+      instrument: {
+        regulation: "4-2009",
+        kind: "judgment",
+        originState: "DK",
+        issuedOn: "2023-02-10",
+      },
+      forumState: "FR",
+      originBoundByHagueProtocol: false,
+    } satisfies RecognitionCase,
+  },
+
+  // ─── Enlèvement (La Haye 1980) ───────────────────────────────────
+  {
+    id: "h1980-fr-de-onyear",
+    kind: "hague-1980",
+    title: "Enlèvement FR → DE, demande dans l'année",
+    summary:
+      "Enfant déplacé illicitement de France vers l'Allemagne, demande de retour introduite 3 mois après. Retour présumé (art. 12 al. 1).",
+    tags: ["La Haye 1980", "art. 12", "retour"],
+    payload: {
+      child: {
+        id: "C",
+        ageAtRemoval: 8,
+        habitualResidenceBeforeRemoval: "FR",
+      },
+      removal: {
+        fromState: "FR",
+        toState: "DE",
+        dateOfRemovalOrRetention: "2024-01-15",
+        breachOfCustodyRights: true,
+        custodyRightsActuallyExercised: true,
+      },
+      application: {
+        dateOfApplication: "2024-04-01",
+        requestingState: "FR",
+      },
+    } satisfies Hague1980Case,
+  },
+  {
+    id: "h1980-fr-gb-grave-risk",
+    kind: "hague-1980",
+    title: "Enlèvement FR → GB avec art. 13(1)(b) invoqué",
+    summary:
+      "Risque grave de danger invoqué par le parent ravisseur. Le retour peut être refusé sous réserve d'appréciation in concreto et art. 11(4) B IIter.",
+    tags: ["La Haye 1980", "art. 13(1)(b)", "risque grave"],
+    payload: {
+      child: {
+        id: "C",
+        ageAtRemoval: 5,
+        habitualResidenceBeforeRemoval: "FR",
+      },
+      removal: {
+        fromState: "FR",
+        toState: "GB",
+        dateOfRemovalOrRetention: "2023-11-20",
+        breachOfCustodyRights: true,
+        custodyRightsActuallyExercised: true,
+      },
+      application: {
+        dateOfApplication: "2024-02-15",
+        requestingState: "FR",
+      },
+      defenses: { graveRiskOfHarm: true },
+    } satisfies Hague1980Case,
   },
 
   // ─── Crise conjugale (crisis) ────────────────────────────────────

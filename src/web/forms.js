@@ -1006,6 +1006,129 @@ const MAINTENANCE_SCHEMA = {
   },
 };
 
+const RECOGNITION_SCHEMA = {
+  kind: "object",
+  label: "Reconnaissance / exécution d'une décision",
+  fields: {
+    instrument: {
+      kind: "object",
+      label: "Décision / acte invoqué",
+      fields: {
+        regulation: {
+          kind: "select",
+          label: "Règlement source",
+          options: [
+            { value: "650-2012", label: "Règl. 650/2012 (Successions)" },
+            { value: "2016-1103", label: "Règl. 2016/1103 (Régimes matrimoniaux)" },
+            { value: "2016-1104", label: "Règl. 2016/1104 (Partenariats)" },
+            { value: "4-2009", label: "Règl. 4/2009 (Aliments)" },
+            { value: "2019-1111", label: "Règl. 2019/1111 (Bruxelles II ter)" },
+          ],
+        },
+        kind: {
+          kind: "select",
+          label: "Type d'acte",
+          options: [
+            { value: "judgment", label: "Décision juridictionnelle" },
+            { value: "authentic-instrument", label: "Acte authentique" },
+            { value: "court-settlement", label: "Transaction judiciaire" },
+            { value: "european-succession-certificate", label: "CSE (R 650 uniquement)" },
+          ],
+        },
+        originState: { kind: "country", label: "État d'origine" },
+        issuedOn: { kind: "date", label: "Date de la décision/acte" },
+      },
+    },
+    forumState: { kind: "country", label: "État requis (où invocation/exécution)" },
+    refusalHints: {
+      kind: "object",
+      label: "Indices pour les motifs de refus",
+      optional: true,
+      fields: {
+        defendantDulyServed: { kind: "boolean", label: "Défendeur régulièrement informé" },
+        defaultJudgment: { kind: "boolean", label: "Décision par défaut" },
+        publicPolicyConcern: { kind: "boolean", label: "Préoccupation d'ordre public manifeste" },
+        irreconcilableWithEarlierDecision: {
+          kind: "boolean",
+          label: "Inconciliable avec une décision antérieure reconnue",
+        },
+      },
+    },
+    originBoundByHagueProtocol: {
+      kind: "boolean",
+      label: "Origine liée par le Protocole de La Haye 2007 (R 4/2009 uniquement)",
+    },
+  },
+};
+
+const HAGUE_1980_SCHEMA = {
+  kind: "object",
+  label: "Enlèvement international d'enfant (La Haye 1980)",
+  fields: {
+    child: {
+      kind: "object",
+      label: "Enfant",
+      fields: {
+        id: { kind: "string", label: "Identifiant" },
+        ageAtRemoval: { kind: "number", label: "Âge au moment du déplacement", min: 0, max: 17 },
+        habitualResidenceBeforeRemoval: {
+          kind: "country",
+          label: "Résidence habituelle avant le déplacement",
+        },
+      },
+    },
+    removal: {
+      kind: "object",
+      label: "Déplacement / non-retour",
+      fields: {
+        fromState: { kind: "country", label: "État d'origine" },
+        toState: { kind: "country", label: "État de refuge" },
+        dateOfRemovalOrRetention: { kind: "date", label: "Date" },
+        breachOfCustodyRights: { kind: "boolean", label: "Violation du droit de garde" },
+        custodyRightsActuallyExercised: {
+          kind: "boolean",
+          label: "Garde effectivement exercée au moment du déplacement",
+        },
+      },
+    },
+    application: {
+      kind: "object",
+      label: "Demande de retour",
+      fields: {
+        dateOfApplication: { kind: "date", label: "Date de la demande" },
+        requestingState: { kind: "country", label: "État requérant" },
+      },
+    },
+    defenses: {
+      kind: "object",
+      label: "Exceptions invoquées (art. 12 § 2, 13, 20)",
+      optional: true,
+      fields: {
+        childSettledMoreThanOneYear: {
+          kind: "boolean",
+          label: "Enfant intégré dans son nouvel environnement (art. 12 § 2)",
+        },
+        consentOrAcquiescence: {
+          kind: "boolean",
+          label: "Consentement ou acquiescement (art. 13 § 1 a)",
+        },
+        graveRiskOfHarm: {
+          kind: "boolean",
+          label: "Risque grave de danger (art. 13 § 1 b)",
+        },
+        objectionByMatureChild: {
+          kind: "boolean",
+          label: "Opposition de l'enfant mature (art. 13 § 2)",
+        },
+        fundamentalPublicPolicy: {
+          kind: "boolean",
+          label: "Principes fondamentaux du for (art. 20)",
+        },
+      },
+    },
+  },
+};
+
 export const SCHEMAS = {
   succession: SUCCESSION_SCHEMA,
   matrimonial: MATRIMONIAL_SCHEMA,
@@ -1016,4 +1139,6 @@ export const SCHEMAS = {
   combined: COMBINED_SCHEMA,
   crisis: CRISIS_SCHEMA,
   maintenance: MAINTENANCE_SCHEMA,
+  recognition: RECOGNITION_SCHEMA,
+  "hague-1980": HAGUE_1980_SCHEMA,
 };

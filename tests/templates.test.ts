@@ -19,6 +19,9 @@ import {
 } from "../src/brussels2/engine.js";
 import { analyseCombined } from "../src/matrimonial/combined.js";
 import { analyseCrisis } from "../src/brussels2/crisis.js";
+import { analyseRecognition } from "../src/recognition/engine.js";
+import { analyseHague1980 } from "../src/hague1980/engine.js";
+import { analyseMaintenance } from "../src/maintenance/engine.js";
 
 describe("Templates — catalogue", () => {
   it("au moins un template par type de cas", () => {
@@ -32,6 +35,9 @@ describe("Templates — catalogue", () => {
       "bii-parental",
       "combined",
       "crisis",
+      "maintenance",
+      "recognition",
+      "hague-1980",
     ] as const) {
       expect(kinds.has(expected)).toBe(true);
     }
@@ -76,6 +82,15 @@ describe("Templates — catalogue", () => {
           break;
         case "crisis":
           expect(() => analyseCrisis(t.payload as never)).not.toThrow();
+          break;
+        case "maintenance":
+          expect(() => analyseMaintenance(t.payload as never)).not.toThrow();
+          break;
+        case "recognition":
+          expect(() => analyseRecognition(t.payload as never)).not.toThrow();
+          break;
+        case "hague-1980":
+          expect(() => analyseHague1980(t.payload as never)).not.toThrow();
           break;
       }
     }

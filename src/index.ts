@@ -129,3 +129,9 @@ export {
   protocolApplies,
 } from "./maintenance/memberStates.js";
 export type * as Maintenance from "./maintenance/types.js";
+
+// Brique 6 — Recognition & enforcement, Hague 1980.
+export { analyseRecognition } from "./recognition/engine.js";
+export type * as Recognition from "./recognition/engine.js";
+export { analyseHague1980, isParty as isHague1980Party } from "./hague1980/engine.js";
+export type * as Hague1980 from "./hague1980/engine.js";

@@ -16,7 +16,9 @@ export type CaseKind =
   | "bii-parental"
   | "crisis"
   | "combined"
-  | "maintenance";
+  | "maintenance"
+  | "recognition"
+  | "hague-1980";
 
 export interface VersionEntry {
   id: string;

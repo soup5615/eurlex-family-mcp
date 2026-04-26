@@ -77,6 +77,15 @@ import {
 import { listBiiBoundStates } from "../brussels2/memberStates.js";
 import { analyseCrisis, type CrisisCase } from "../brussels2/crisis.js";
 
+import {
+  analyseRecognition,
+  type RecognitionCase,
+} from "../recognition/engine.js";
+import {
+  analyseHague1980,
+  type Hague1980Case,
+} from "../hague1980/engine.js";
+
 import { analyseMaintenance } from "../maintenance/engine.js";
 import {
   getMaintenanceArticle,
@@ -300,6 +309,13 @@ export function buildRoutes(): Route[] {
 
   add("POST", "/api/maintenance/analyze", async (req, res) => {
     json(res, 200, analyseMaintenance(await readJson<MaintenanceCase>(req)));
+  });
+
+  add("POST", "/api/recognition/analyze", async (req, res) => {
+    json(res, 200, analyseRecognition(await readJson<RecognitionCase>(req)));
+  });
+  add("POST", "/api/hague1980/analyze", async (req, res) => {
+    json(res, 200, analyseHague1980(await readJson<Hague1980Case>(req)));
   });
 
   // Reference data

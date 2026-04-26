@@ -150,6 +150,43 @@ const TABS = [
     },
   },
   {
+    key: "recognition",
+    label: "Reconnaissance & exécution",
+    analyzeUrl: "/api/recognition/analyze",
+    example: {
+      instrument: {
+        regulation: "650-2012",
+        kind: "judgment",
+        originState: "DE",
+        issuedOn: "2023-06-01",
+      },
+      forumState: "FR",
+    },
+  },
+  {
+    key: "hague-1980",
+    label: "Enlèvement (La Haye 1980)",
+    analyzeUrl: "/api/hague1980/analyze",
+    example: {
+      child: {
+        id: "C",
+        ageAtRemoval: 8,
+        habitualResidenceBeforeRemoval: "FR",
+      },
+      removal: {
+        fromState: "FR",
+        toState: "DE",
+        dateOfRemovalOrRetention: "2024-01-15",
+        breachOfCustodyRights: true,
+        custodyRightsActuallyExercised: true,
+      },
+      application: {
+        dateOfApplication: "2024-04-01",
+        requestingState: "FR",
+      },
+    },
+  },
+  {
     key: "maintenance",
     label: "Aliments (4/2009)",
     analyzeUrl: "/api/maintenance/analyze",
