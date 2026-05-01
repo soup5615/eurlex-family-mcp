@@ -26,6 +26,26 @@ body {
   font-size: .85rem;
 }
 .user-banner .btn { background: #fff; color: #111; }
+.legal-banner {
+  background: #fff4e0;
+  border-bottom: 2px solid #cc8800;
+  color: #6a3a00;
+  padding: .5rem 1rem;
+  font-size: .85rem;
+  text-align: center;
+  line-height: 1.4;
+}
+.legal-banner strong { color: #8b3a00; }
+.conf-fact, .conf-eng {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.75em;
+  margin-left: .4em;
+  vertical-align: middle;
+}
+.conf-fact { background: #ffe1c4; color: #6a3a00; }
+.conf-eng { background: #e0e0d9; color: #444; }
 .app-header h1 { margin: 0; font-size: 1.4rem; letter-spacing: .02em; }
 .tagline { margin: .25rem 0 0; color: #bfbfbf; font-size: .85rem; }
 .tabs {

@@ -133,6 +133,7 @@ function analyseOne(d: Disposition, input: SuccessionCase): DispositionAnalysis 
       rule: "Un pacte successoral concernant la succession d'une seule personne est régi, pour sa recevabilité, sa validité au fond et ses effets obligatoires, par la loi qui, en vertu du règlement, aurait été applicable à la succession de cette personne si elle était décédée le jour où le pacte a été conclu.",
       appliedTo: `Pacte conclu le ${d.dateExecuted} ; résidence habituelle (approchée) à cette date : ${law}.`,
       conclusion: `Loi régissant la recevabilité et la validité au fond : droit de ${law}${approxNote}`,
+      confidence: hrAtMaking.approximate ? "engine-limitation" : "high",
     });
     return {
       disposition: d,
@@ -148,6 +149,7 @@ function analyseOne(d: Disposition, input: SuccessionCase): DispositionAnalysis 
     rule: "La recevabilité et la validité au fond d'une disposition à cause de mort autre qu'un pacte successoral sont régies par la loi qui, en vertu du règlement, aurait été applicable à la succession de son auteur s'il était décédé le jour où la disposition a été établie.",
     appliedTo: `Disposition du ${d.dateExecuted} ; résidence habituelle (approchée) à cette date : ${law}.`,
     conclusion: `Loi régissant la recevabilité et la validité au fond : droit de ${law}${approxNote}`,
+    confidence: hrAtMaking.approximate ? "engine-limitation" : "high",
   });
   return {
     disposition: d,

@@ -100,6 +100,12 @@ import {
   regulationSource,
   type RegulationKey,
 } from "../data/sources.js";
+import {
+  PRIMARY_DISCLAIMER,
+  SCOPE_LIMITATIONS_BY_REGULATION,
+  SHORT_DISCLAIMER,
+  listScopeLimitations,
+} from "../data/legalDisclaimer.js";
 import { CaseStore, type CaseKind } from "./storage.js";
 import {
   buildSessionCookie,
@@ -175,6 +181,31 @@ export function buildRoutes(): Route[] {
   };
 
   add("GET", "/health", (_req, res) => json(res, 200, { ok: true }), { public: true });
+
+  // Disclaimer + scope-limitations — public so they can be displayed
+  // before authentication.
+  add(
+    "GET",
+    "/api/disclaimer",
+    (_req, res) =>
+      json(res, 200, {
+        primary: PRIMARY_DISCLAIMER,
+        short: SHORT_DISCLAIMER,
+        scopeLimitations: listScopeLimitations(),
+      }),
+    { public: true },
+  );
+  add(
+    "GET",
+    "/api/scope-limitations/:regulation",
+    (_req, res, { params }) => {
+      const r = params.regulation ?? "";
+      const lims = SCOPE_LIMITATIONS_BY_REGULATION[r];
+      if (!lims) return json(res, 404, { error: `unknown regulation ${r}` });
+      json(res, 200, { regulation: r, limitations: lims });
+    },
+    { public: true },
+  );
 
   // Auth routes — public by definition.
   add(

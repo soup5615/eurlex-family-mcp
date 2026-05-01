@@ -3,6 +3,9 @@
 // authoritative texts: EUR-Lex 32009R0004 and HCCH conventions.
 
 import { regulationSource } from "../data/sources.js";
+import type { VerificationStatus } from "../data/legalDisclaimer.js";
+
+const DEFAULT_STATUS: VerificationStatus = "drafted-by-claude";
 
 export interface MaintenanceArticleSummary {
   id: string;
@@ -10,6 +13,7 @@ export interface MaintenanceArticleSummary {
   summary: string;
   regulation?: string;
   officialUrl?: string;
+  verificationStatus?: VerificationStatus;
 }
 
 export const MAINTENANCE_ARTICLES: Record<string, MaintenanceArticleSummary> = {
@@ -132,7 +136,12 @@ function decorate(
   const src = rawKey.startsWith("P.")
     ? regulationSource("hague-protocol-2007")
     : regulationSource("4-2009");
-  return { ...a, regulation: src.shortTitle, officialUrl: src.officialUrl };
+  return {
+    ...a,
+    regulation: src.shortTitle,
+    officialUrl: src.officialUrl,
+    verificationStatus: a.verificationStatus ?? DEFAULT_STATUS,
+  };
 }
 
 export function getMaintenanceArticle(id: string): MaintenanceArticleSummary | undefined {

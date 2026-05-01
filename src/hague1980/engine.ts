@@ -184,6 +184,7 @@ export function analyseHague1980(input: Hague1980Case): Hague1980Determination {
       appliedTo: "Au moins une exception est invoquée.",
       conclusion:
         "Le retour peut être refusé sous réserve de l'appréciation du juge ; charge de la preuve sur celui qui s'oppose.",
+      confidence: "fact-sensitive",
     });
     warnings.push(
       "Exception invoquée : sous l'art. 11(4) Bruxelles II ter, l'art. 13(1)(b) ne suffit pas si des mesures adéquates protègent l'enfant à son retour ; l'art. 11(7) prévoit un mécanisme de retour en dépit du non-retour ordonné par l'État de refuge.",

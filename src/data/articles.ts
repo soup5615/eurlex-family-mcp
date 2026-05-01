@@ -3,8 +3,10 @@
 // reasoning / documentation only. Authoritative text: EUR-Lex 32012R0650.
 
 import { regulationSource } from "./sources.js";
+import type { VerificationStatus } from "./legalDisclaimer.js";
 
 const REGULATION_KEY = "650-2012" as const;
+const DEFAULT_STATUS: VerificationStatus = "drafted-by-claude";
 
 export interface ArticleSummary {
   id: string;
@@ -13,6 +15,7 @@ export interface ArticleSummary {
   // Computed on read.
   regulation?: string;
   officialUrl?: string;
+  verificationStatus?: VerificationStatus;
 }
 
 export const ARTICLES: Record<string, ArticleSummary> = {
@@ -140,7 +143,12 @@ export const ARTICLES: Record<string, ArticleSummary> = {
 
 function decorate(a: ArticleSummary): ArticleSummary {
   const src = regulationSource(REGULATION_KEY);
-  return { ...a, regulation: src.shortTitle, officialUrl: src.officialUrl };
+  return {
+    ...a,
+    regulation: src.shortTitle,
+    officialUrl: src.officialUrl,
+    verificationStatus: a.verificationStatus ?? DEFAULT_STATUS,
+  };
 }
 
 export function getArticle(id: string): ArticleSummary | undefined {

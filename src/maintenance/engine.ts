@@ -409,6 +409,7 @@ export function determineMaintenanceApplicableLaw(
         rule: "Pour les obligations entre époux/ex-époux, la règle de l'art. 3 ne s'applique pas si l'une des parties s'y oppose et que la loi d'un autre État (notamment la dernière RH commune) présente des liens plus étroits avec le mariage.",
         appliedTo: `Opposition retenue ; loi de ${other} aux liens plus étroits avec le mariage.`,
         conclusion: `Loi applicable : droit de ${other}.`,
+        confidence: "fact-sensitive",
       });
       return {
         applicableLaw: other,

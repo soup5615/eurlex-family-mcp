@@ -566,7 +566,13 @@ function renderRegulationAnalysis(parent, data, opts = {}) {
     for (const s of steps) {
       const box = document.createElement("div");
       box.className = "reasoning-step";
-      box.innerHTML = `<div class="art">${escape(s.article)}</div>
+      const badge =
+        s.confidence === "fact-sensitive"
+          ? '<span class="conf-fact">⚠ appréciation judiciaire requise</span>'
+          : s.confidence === "engine-limitation"
+            ? '<span class="conf-eng">⚠ approximation du moteur</span>'
+            : "";
+      box.innerHTML = `<div class="art">${escape(s.article)} ${badge}</div>
         <div><em>Règle :</em> ${escape(s.rule)}</div>
         <div><em>Application :</em> ${escape(s.appliedTo)}</div>
         <div><em>Conclusion :</em> ${escape(s.conclusion)}</div>`;

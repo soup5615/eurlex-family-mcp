@@ -50,6 +50,7 @@ export function determineApplicableLaw(
       rule: "À titre exceptionnel, lorsque le défunt présentait, au moment du décès, des liens manifestement plus étroits avec un État autre que celui de sa résidence habituelle, la loi de cet autre État s'applique.",
       appliedTo: `Liens manifestement plus étroits signalés avec ${closer} (résidence habituelle : ${hr}).`,
       conclusion: `Loi successorale applicable : droit de ${closer} (clause d'exception de l'art. 21(2)).`,
+      confidence: "fact-sensitive",
     });
     warnings.push(
       "Art. 21(2) est une dérogation à caractère exceptionnel ; le juge doit motiver finement l'ensemble des circonstances (durée, stabilité, centre des intérêts, famille, biens).",

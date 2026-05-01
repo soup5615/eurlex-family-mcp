@@ -2,8 +2,10 @@
 // Summaries only — authoritative text on EUR-Lex 32010R1259.
 
 import { regulationSource } from "../data/sources.js";
+import type { VerificationStatus } from "../data/legalDisclaimer.js";
 
 const REGULATION_KEY = "1259-2010" as const;
+const DEFAULT_STATUS: VerificationStatus = "drafted-by-claude";
 
 export interface Rome3ArticleSummary {
   id: string;
@@ -11,6 +13,7 @@ export interface Rome3ArticleSummary {
   summary: string;
   regulation?: string;
   officialUrl?: string;
+  verificationStatus?: VerificationStatus;
 }
 
 export const ROME3_ARTICLES: Record<string, Rome3ArticleSummary> = {
@@ -96,7 +99,12 @@ export const ROME3_ARTICLES: Record<string, Rome3ArticleSummary> = {
 
 function decorate(a: Rome3ArticleSummary): Rome3ArticleSummary {
   const src = regulationSource(REGULATION_KEY);
-  return { ...a, regulation: src.shortTitle, officialUrl: src.officialUrl };
+  return {
+    ...a,
+    regulation: src.shortTitle,
+    officialUrl: src.officialUrl,
+    verificationStatus: a.verificationStatus ?? DEFAULT_STATUS,
+  };
 }
 
 export function getRome3Article(id: string): Rome3ArticleSummary | undefined {

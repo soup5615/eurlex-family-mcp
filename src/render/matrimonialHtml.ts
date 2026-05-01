@@ -9,6 +9,10 @@ import {
   type DoctrineEntry,
   type RegulationKey,
 } from "../data/sources.js";
+import {
+  PRIMARY_DISCLAIMER,
+  SCOPE_LIMITATIONS_BY_REGULATION,
+} from "../data/legalDisclaimer.js";
 
 function sourcesBlock(keys: RegulationKey[]): string {
   const sections = keys.map((key) => {
@@ -50,18 +54,49 @@ function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function confidenceBadge(c: ReasoningStep["confidence"]): string {
+  if (!c || c === "high") return "";
+  const label =
+    c === "fact-sensitive"
+      ? "appréciation judiciaire requise"
+      : "approximation du moteur";
+  const cls = c === "fact-sensitive" ? "conf-fact" : "conf-eng";
+  return ` <span class="conf-badge ${cls}" title="${esc(c)}">⚠ ${esc(label)}</span>`;
+}
+
 function reasoningList(steps: ReasoningStep[]): string {
   if (steps.length === 0) return "";
   return `<ol class="reasoning">${steps
     .map(
       (r) => `<li>
-        <div class="article">${esc(r.article)}</div>
+        <div class="article">${esc(r.article)}${confidenceBadge(r.confidence)}</div>
         <div class="rule"><em>Règle :</em> ${esc(r.rule)}</div>
         <div class="applied"><em>Application :</em> ${esc(r.appliedTo)}</div>
         <div class="conclusion"><em>Conclusion :</em> ${esc(r.conclusion)}</div>
       </li>`,
     )
     .join("")}</ol>`;
+}
+
+function disclaimerBanner(): string {
+  return `<aside class="legal-disclaimer">
+    <strong>Avertissement.</strong> ${esc(PRIMARY_DISCLAIMER)}
+  </aside>`;
+}
+
+function scopeLimitationsBlock(keys: RegulationKey[]): string {
+  const sections = keys
+    .map((k) => SCOPE_LIMITATIONS_BY_REGULATION[k])
+    .filter((x): x is string[] => Array.isArray(x));
+  if (sections.length === 0) return "";
+  const lis = sections
+    .flatMap((arr) => arr.map((l) => `<li>${esc(l)}</li>`))
+    .join("");
+  return `<section class="scope-limits">
+    <h2>Limites du moteur</h2>
+    <p class="muted">Liste des points <em>non modélisés</em> ou <em>approximés</em>.</p>
+    <ul>${lis}</ul>
+  </section>`;
 }
 
 function warningList(ws: string[]): string {
@@ -85,7 +120,14 @@ footer { margin-top: 3rem; color: #777; font-size: 0.85em; border-top: 1px solid
 .sources h3 { font-size: .95rem; margin: 1rem 0 .3rem; }
 .sources .src-section { margin-bottom: 1rem; }
 .doctrine { padding-left: 1.2rem; }
-.doctrine li { margin-bottom: .35rem; font-size: .9rem; }`;
+.doctrine li { margin-bottom: .35rem; font-size: .9rem; }
+.legal-disclaimer { background: #fff4e0; border: 2px solid #cc8800; padding: 1rem 1.2rem; border-radius: 4px; margin: 1rem 0 2rem; font-size: .92em; }
+.legal-disclaimer strong { color: #8b3a00; }
+.conf-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 0.75em; margin-left: .4em; vertical-align: middle; }
+.conf-fact { background: #ffe1c4; color: #6a3a00; }
+.conf-eng { background: #e0e0d9; color: #444; }
+.scope-limits { background: #fafaf6; border-left: 3px solid #aaa; padding: .8rem 1rem; margin: 1.5rem 0; font-size: .9em; }
+.scope-limits h2 { margin-top: 0; }`;
 
 export function renderMatrimonialHTML(
   a: MatrimonialAnalysis,
@@ -125,6 +167,8 @@ export function renderMatrimonialHTML(
   <h1>${esc(title)}</h1>
   <p class="muted">Règlement (UE) 2016/1103 du 24 juin 2016 — consultation automatisée</p>
 
+  ${disclaimerBanner()}
+
   <section>
     <h2>Faits</h2>
     <div class="facts">
@@ -162,6 +206,8 @@ export function renderMatrimonialHTML(
   ${colBlock}
 
   ${a.flags.length > 0 ? `<section><h2>Points de vigilance</h2><div class="flags"><ul>${a.flags.map((f) => `<li>${esc(f)}</li>`).join("")}</ul></div></section>` : ""}
+
+  ${scopeLimitationsBlock(["2016-1103"])}
 
   ${sourcesBlock(["2016-1103"])}
 
@@ -214,6 +260,8 @@ export function renderCombinedHTML(
   <h1>${esc(title)}</h1>
   <p class="muted">Règlement (UE) 650/2012 + Règlement (UE) 2016/1103</p>
 
+  ${disclaimerBanner()}
+
   <section>
     <h2>Faits</h2>
     <div class="facts">
@@ -226,6 +274,8 @@ export function renderCombinedHTML(
   ${matrimonialSummary}
 
   ${a.matrimonial.flags.length > 0 || a.succession.flags.length > 0 ? `<section><h2>Points de vigilance</h2><div class="flags"><ul>${[...a.succession.flags, ...a.matrimonial.flags].map((f) => `<li>${esc(f)}</li>`).join("")}</ul></div></section>` : ""}
+
+  ${scopeLimitationsBlock(["650-2012", "2016-1103"])}
 
   ${sourcesBlock(["650-2012", "2016-1103"])}
 

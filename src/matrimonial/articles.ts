@@ -2,8 +2,10 @@
 // Regulation (EU) 2016/1103. Summaries, not official text.
 
 import { regulationSource } from "../data/sources.js";
+import type { VerificationStatus } from "../data/legalDisclaimer.js";
 
 const REGULATION_KEY = "2016-1103" as const;
+const DEFAULT_STATUS: VerificationStatus = "drafted-by-claude";
 
 export interface MatrimonialArticleSummary {
   id: string;
@@ -11,6 +13,7 @@ export interface MatrimonialArticleSummary {
   summary: string;
   regulation?: string;
   officialUrl?: string;
+  verificationStatus?: VerificationStatus;
 }
 
 export const MATRIMONIAL_ARTICLES: Record<string, MatrimonialArticleSummary> = {
@@ -156,7 +159,12 @@ export const MATRIMONIAL_ARTICLES: Record<string, MatrimonialArticleSummary> = {
 
 function decorate(a: MatrimonialArticleSummary): MatrimonialArticleSummary {
   const src = regulationSource(REGULATION_KEY);
-  return { ...a, regulation: src.shortTitle, officialUrl: src.officialUrl };
+  return {
+    ...a,
+    regulation: src.shortTitle,
+    officialUrl: src.officialUrl,
+    verificationStatus: a.verificationStatus ?? DEFAULT_STATUS,
+  };
 }
 
 export function getMatrimonialArticle(

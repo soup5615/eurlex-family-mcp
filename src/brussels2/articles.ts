@@ -2,8 +2,10 @@
 // Summaries only — authoritative text on EUR-Lex 32019R1111.
 
 import { regulationSource } from "../data/sources.js";
+import type { VerificationStatus } from "../data/legalDisclaimer.js";
 
 const REGULATION_KEY = "2019-1111" as const;
+const DEFAULT_STATUS: VerificationStatus = "drafted-by-claude";
 
 export interface BiiArticleSummary {
   id: string;
@@ -11,6 +13,7 @@ export interface BiiArticleSummary {
   summary: string;
   regulation?: string;
   officialUrl?: string;
+  verificationStatus?: VerificationStatus;
 }
 
 export const BII_ARTICLES: Record<string, BiiArticleSummary> = {
@@ -108,7 +111,12 @@ export const BII_ARTICLES: Record<string, BiiArticleSummary> = {
 
 function decorate(a: BiiArticleSummary): BiiArticleSummary {
   const src = regulationSource(REGULATION_KEY);
-  return { ...a, regulation: src.shortTitle, officialUrl: src.officialUrl };
+  return {
+    ...a,
+    regulation: src.shortTitle,
+    officialUrl: src.officialUrl,
+    verificationStatus: a.verificationStatus ?? DEFAULT_STATUS,
+  };
 }
 
 export function getBiiArticle(id: string): BiiArticleSummary | undefined {

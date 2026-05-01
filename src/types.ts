@@ -82,11 +82,17 @@ export interface SuccessionCase {
   manifestlyCloserConnectionWith?: CountryCode;
 }
 
+export type ConclusionConfidence = "high" | "fact-sensitive" | "engine-limitation";
+
 export interface ReasoningStep {
   article: string; // e.g. "Art. 21(1) Règl. (UE) 650/2012"
   rule: string; // textual rule summary
   appliedTo: string; // facts considered
   conclusion: string;
+  // When set, signals that this step is not a plain mechanical rule:
+  // either it requires judicial appreciation ("fact-sensitive") or
+  // the engine is approximating ("engine-limitation").
+  confidence?: ConclusionConfidence;
 }
 
 export type JurisdictionBasis =

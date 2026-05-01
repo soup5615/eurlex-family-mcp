@@ -130,6 +130,7 @@ export function determineMatrimonialApplicableLaw(
     appliedTo: "Aucun critère (a) ou (b) rempli.",
     conclusion:
       "Détermination au cas par cas ; faisceau d'indices (lieu du mariage, lieu d'installation prévu, famille, biens).",
+    confidence: "fact-sensitive",
   });
   return {
     applicableLaw: null,
@@ -270,6 +271,7 @@ export function applyCloserConnectionException(
     rule: "À titre exceptionnel, à la demande d'un époux, la juridiction peut appliquer la loi de l'État dans lequel les époux ont eu leur dernière RH commune pendant une période significativement plus longue que la première, si les deux époux se sont fondés sur cette loi pour organiser leurs rapports patrimoniaux.",
     appliedTo: `Demande de l'époux ${ex.requestedBySpouseId ?? "(non précisé)"} ; dernière RH commune en ${other} : ${ex.yearsInLastCommonHR} ans vs ${ex.yearsInFirstCommonHR} ans pour la première ; confiance établie.`,
     conclusion: `Loi applicable : droit de ${other} (art. 26(2)).`,
+    confidence: "fact-sensitive",
   });
   return { country: other, reasoning, warnings };
 }

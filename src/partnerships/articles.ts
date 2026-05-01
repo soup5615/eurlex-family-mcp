@@ -2,8 +2,10 @@
 // Summaries only — authoritative text on EUR-Lex 32016R1104.
 
 import { regulationSource } from "../data/sources.js";
+import type { VerificationStatus } from "../data/legalDisclaimer.js";
 
 const REGULATION_KEY = "2016-1104" as const;
+const DEFAULT_STATUS: VerificationStatus = "drafted-by-claude";
 
 export interface PartnershipArticleSummary {
   id: string;
@@ -11,6 +13,7 @@ export interface PartnershipArticleSummary {
   summary: string;
   regulation?: string;
   officialUrl?: string;
+  verificationStatus?: VerificationStatus;
 }
 
 export const PARTNERSHIP_ARTICLES: Record<string, PartnershipArticleSummary> = {
@@ -132,7 +135,12 @@ export const PARTNERSHIP_ARTICLES: Record<string, PartnershipArticleSummary> = {
 
 function decorate(a: PartnershipArticleSummary): PartnershipArticleSummary {
   const src = regulationSource(REGULATION_KEY);
-  return { ...a, regulation: src.shortTitle, officialUrl: src.officialUrl };
+  return {
+    ...a,
+    regulation: src.shortTitle,
+    officialUrl: src.officialUrl,
+    verificationStatus: a.verificationStatus ?? DEFAULT_STATUS,
+  };
 }
 
 export function getPartnershipArticle(
