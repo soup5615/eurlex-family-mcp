@@ -114,6 +114,7 @@ import {
   SESSION_COOKIE,
   UserStore,
   type User,
+  type UserBranding,
 } from "./auth.js";
 import { ChromeNotFoundError, renderPdf } from "./pdf.js";
 import { getTemplate, listTemplates } from "./templates.js";
@@ -259,52 +260,122 @@ export function buildRoutes(): Route[] {
     json(res, 200, users.publicView(user));
   }, { public: true });
 
+  add(
+    "PUT",
+    "/api/auth/me/branding",
+    async (req, res, { user, users }) => {
+      if (!user) return json(res, 401, { error: "non authentifié" });
+      const body = await readJson<UserBranding | { reset?: boolean }>(req);
+      const target = body && "reset" in body && body.reset ? null : (body as UserBranding);
+      const u = users.setBranding(user.id, target);
+      if (!u) return json(res, 404, { error: "user not found" });
+      json(res, 200, users.publicView(u));
+    },
+    { public: false },
+  );
+
   // Engines — analysis
   add("POST", "/api/succession/analyze", async (req, res) => {
     const body = await readJson<SuccessionCase>(req);
     json(res, 200, analyseSuccession(body));
   });
-  add("POST", "/api/succession/consultation", async (req, res) => {
-    const { case: c, title } = await readJson<{ case: SuccessionCase; title?: string }>(req);
-    const a = analyseSuccession(c);
-    html(res, 200, renderConsultationHTML(a, title ? { title } : {}));
+  add("POST", "/api/succession/consultation", async (req, res, { user }) => {
+    const body = await readJson<{
+      case: SuccessionCase;
+      title?: string;
+      branding?: UserBranding;
+    }>(req);
+    const a = analyseSuccession(body.case);
+    const branding = body.branding ?? user?.branding;
+    html(
+      res,
+      200,
+      renderConsultationHTML(a, {
+        ...(body.title ? { title: body.title } : {}),
+        ...(branding ? { branding } : {}),
+      }),
+    );
   });
-  add("POST", "/api/succession/pdf", async (req, res) => {
-    const { case: c, title } = await readJson<{ case: SuccessionCase; title?: string }>(req);
-    const a = analyseSuccession(c);
-    const out = renderConsultationHTML(a, title ? { title } : {});
-    await sendPdf(res, out, slug(title ?? "consultation-succession"));
+  add("POST", "/api/succession/pdf", async (req, res, { user }) => {
+    const body = await readJson<{
+      case: SuccessionCase;
+      title?: string;
+      branding?: UserBranding;
+    }>(req);
+    const a = analyseSuccession(body.case);
+    const branding = body.branding ?? user?.branding;
+    const out = renderConsultationHTML(a, {
+      ...(body.title ? { title: body.title } : {}),
+      ...(branding ? { branding } : {}),
+    });
+    await sendPdf(res, out, slug(body.title ?? "consultation-succession"));
   });
 
   add("POST", "/api/matrimonial/analyze", async (req, res) => {
     json(res, 200, analyseMatrimonial(await readJson<MatrimonialCase>(req)));
   });
-  add("POST", "/api/matrimonial/consultation", async (req, res) => {
-    const { case: c, title } = await readJson<{ case: MatrimonialCase; title?: string }>(req);
-    const a = analyseMatrimonial(c);
-    html(res, 200, renderMatrimonialHTML(a, title ? { title } : {}));
+  add("POST", "/api/matrimonial/consultation", async (req, res, { user }) => {
+    const body = await readJson<{
+      case: MatrimonialCase;
+      title?: string;
+      branding?: UserBranding;
+    }>(req);
+    const a = analyseMatrimonial(body.case);
+    const branding = body.branding ?? user?.branding;
+    html(
+      res,
+      200,
+      renderMatrimonialHTML(a, {
+        ...(body.title ? { title: body.title } : {}),
+        ...(branding ? { branding } : {}),
+      }),
+    );
   });
-  add("POST", "/api/matrimonial/pdf", async (req, res) => {
-    const { case: c, title } = await readJson<{ case: MatrimonialCase; title?: string }>(req);
-    const a = analyseMatrimonial(c);
-    const out = renderMatrimonialHTML(a, title ? { title } : {});
-    await sendPdf(res, out, slug(title ?? "consultation-matrimonial"));
+  add("POST", "/api/matrimonial/pdf", async (req, res, { user }) => {
+    const body = await readJson<{
+      case: MatrimonialCase;
+      title?: string;
+      branding?: UserBranding;
+    }>(req);
+    const a = analyseMatrimonial(body.case);
+    const branding = body.branding ?? user?.branding;
+    const out = renderMatrimonialHTML(a, {
+      ...(body.title ? { title: body.title } : {}),
+      ...(branding ? { branding } : {}),
+    });
+    await sendPdf(res, out, slug(body.title ?? "consultation-matrimonial"));
   });
 
   add("POST", "/api/combined/analyze", async (req, res) => {
     json(res, 200, analyseCombined(await readJson<CombinedCase>(req)));
   });
-  add("POST", "/api/combined/consultation", async (req, res) => {
-    const body = await readJson<CombinedCase & { title?: string }>(req);
-    const { title, ...rest } = body;
+  add("POST", "/api/combined/consultation", async (req, res, { user }) => {
+    const body = await readJson<
+      CombinedCase & { title?: string; branding?: UserBranding }
+    >(req);
+    const { title, branding: bodyBranding, ...rest } = body;
     const a = analyseCombined(rest);
-    html(res, 200, renderCombinedHTML(a, title ? { title } : {}));
+    const branding = bodyBranding ?? user?.branding;
+    html(
+      res,
+      200,
+      renderCombinedHTML(a, {
+        ...(title ? { title } : {}),
+        ...(branding ? { branding } : {}),
+      }),
+    );
   });
-  add("POST", "/api/combined/pdf", async (req, res) => {
-    const body = await readJson<CombinedCase & { title?: string }>(req);
-    const { title, ...rest } = body;
+  add("POST", "/api/combined/pdf", async (req, res, { user }) => {
+    const body = await readJson<
+      CombinedCase & { title?: string; branding?: UserBranding }
+    >(req);
+    const { title, branding: bodyBranding, ...rest } = body;
     const a = analyseCombined(rest);
-    const out = renderCombinedHTML(a, title ? { title } : {});
+    const branding = bodyBranding ?? user?.branding;
+    const out = renderCombinedHTML(a, {
+      ...(title ? { title } : {}),
+      ...(branding ? { branding } : {}),
+    });
     await sendPdf(res, out, slug(title ?? "consultation-combinee"));
   });
 

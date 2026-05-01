@@ -14,6 +14,7 @@
     </div>
     <div id="user-banner" class="user-banner" hidden>
       <span id="user-email"></span>
+      <button id="btn-branding" type="button" class="btn">Cabinet…</button>
       <button id="btn-logout" type="button" class="btn">Se déconnecter</button>
     </div>
   </header>
@@ -58,6 +59,27 @@
       <ul id="library" class="library"></ul>
     </aside>
   </main>
+
+  <dialog id="branding-dialog">
+    <form method="dialog" id="branding-form">
+      <h3>Identité du cabinet</h3>
+      <p class="muted" style="font-size:.85rem;margin:.2rem 0 .8rem;">
+        Apparaît sur la page de garde et l'en-tête de chaque note PDF générée.
+      </p>
+      <label>Cabinet <input name="firmName" type="text" placeholder="SCP Dupont &amp; Associés"></label>
+      <label>Devise / accroche <input name="firmTagline" type="text" placeholder="Avocats au Barreau de Paris — depuis 1962"></label>
+      <label>Adresse <textarea name="firmAddress" rows="2" placeholder="12 rue de Rivoli, 75001 Paris"></textarea></label>
+      <label>Auteur (par défaut) <input name="authorName" type="text" placeholder="Maître Camille Dupont"></label>
+      <label>Titre de l'auteur <input name="authorTitle" type="text" placeholder="Avocat au Barreau de Paris"></label>
+      <label>Logo (PNG/JPG/SVG, ≤ 200 Ko) <input name="logoFile" type="file" accept="image/png,image/jpeg,image/svg+xml"></label>
+      <div id="branding-logo-preview" style="margin:.5rem 0;"></div>
+      <menu>
+        <button type="button" class="btn" id="branding-clear">Réinitialiser</button>
+        <button type="button" class="btn" id="branding-cancel">Fermer</button>
+        <button type="submit" class="btn btn-primary" id="branding-save">Enregistrer</button>
+      </menu>
+    </form>
+  </dialog>
 
   <dialog id="versions-dialog">
     <h3>Historique des versions</h3>

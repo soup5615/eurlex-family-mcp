@@ -9,6 +9,13 @@ import {
   PRIMARY_DISCLAIMER,
   SCOPE_LIMITATIONS_BY_REGULATION,
 } from "../data/legalDisclaimer.js";
+import {
+  hasBranding,
+  pageStyle,
+  renderCoverPage,
+  renderDisclaimerPage,
+  type Branding,
+} from "./branding.js";
 
 function sourcesBlock(keys: RegulationKey[]): string {
   const sections = keys.map((key) => {
@@ -102,11 +109,15 @@ function warningList(ws: string[]): string {
 
 export function renderConsultationHTML(
   a: SuccessionAnalysis,
-  opts: { title?: string } = {},
+  opts: { title?: string; branding?: Branding } = {},
 ): string {
   const title = opts.title ?? "Consultation — Règl. (UE) 650/2012";
   const nats = a.input.deceased.nationalities.join(", ") || "(aucune)";
   const hr = a.input.deceased.lastHabitualResidence;
+  const branded = hasBranding(opts.branding);
+  const cover = branded ? renderCoverPage(opts.branding!, title) : "";
+  const discPage = branded ? renderDisclaimerPage(["650-2012"]) : "";
+  const printStyle = branded ? pageStyle(opts.branding!) : "";
 
   const dispositionsBlock = a.dispositions
     .map((d) => {
@@ -150,6 +161,7 @@ export function renderConsultationHTML(
 <meta charset="utf-8">
 <title>${esc(title)}</title>
 <style>
+  ${printStyle}
   body { font-family: Georgia, "Times New Roman", serif; max-width: 820px; margin: 2rem auto; color: #1a1a1a; line-height: 1.5; padding: 0 1rem; }
   h1 { border-bottom: 2px solid #1a1a1a; padding-bottom: .3rem; }
   h2 { margin-top: 2rem; border-bottom: 1px solid #bbb; padding-bottom: .2rem; }
@@ -180,10 +192,12 @@ export function renderConsultationHTML(
 </style>
 </head>
 <body>
+  ${cover}
+  ${discPage}
   <h1>${esc(title)}</h1>
   <p class="muted">Règlement (UE) n° 650/2012 du 4 juillet 2012 — consultation automatisée</p>
 
-  ${disclaimerBanner()}
+  ${branded ? "" : disclaimerBanner()}
 
   <section>
     <h2>Faits</h2>

@@ -13,6 +13,13 @@ import {
   PRIMARY_DISCLAIMER,
   SCOPE_LIMITATIONS_BY_REGULATION,
 } from "../data/legalDisclaimer.js";
+import {
+  hasBranding,
+  pageStyle,
+  renderCoverPage,
+  renderDisclaimerPage,
+  type Branding,
+} from "./branding.js";
 
 function sourcesBlock(keys: RegulationKey[]): string {
   const sections = keys.map((key) => {
@@ -131,10 +138,14 @@ footer { margin-top: 3rem; color: #777; font-size: 0.85em; border-top: 1px solid
 
 export function renderMatrimonialHTML(
   a: MatrimonialAnalysis,
-  opts: { title?: string } = {},
+  opts: { title?: string; branding?: Branding } = {},
 ): string {
   const title = opts.title ?? "Consultation — Règl. (UE) 2016/1103";
   const [sa, sb] = a.input.spouses;
+  const branded = hasBranding(opts.branding);
+  const cover = branded ? renderCoverPage(opts.branding!, title) : "";
+  const discPage = branded ? renderDisclaimerPage(["2016-1103"]) : "";
+  const printStyle = branded ? pageStyle(opts.branding!) : "";
 
   const mpaBlock = a.mpa
     ? `<section>
@@ -161,13 +172,16 @@ export function renderMatrimonialHTML(
 <head>
 <meta charset="utf-8">
 <title>${esc(title)}</title>
-<style>${STYLE}</style>
+<style>${STYLE}
+${printStyle}</style>
 </head>
 <body>
+  ${cover}
+  ${discPage}
   <h1>${esc(title)}</h1>
   <p class="muted">Règlement (UE) 2016/1103 du 24 juin 2016 — consultation automatisée</p>
 
-  ${disclaimerBanner()}
+  ${branded ? "" : disclaimerBanner()}
 
   <section>
     <h2>Faits</h2>
@@ -221,10 +235,16 @@ export function renderMatrimonialHTML(
 
 export function renderCombinedHTML(
   a: CombinedAnalysis,
-  opts: { title?: string } = {},
+  opts: { title?: string; branding?: Branding } = {},
 ): string {
   const title = opts.title ?? "Consultation — décès d'un conjoint (UE)";
   const dec = a.succession.input.deceased;
+  const branded = hasBranding(opts.branding);
+  const cover = branded ? renderCoverPage(opts.branding!, title) : "";
+  const discPage = branded
+    ? renderDisclaimerPage(["650-2012", "2016-1103"])
+    : "";
+  const printStyle = branded ? pageStyle(opts.branding!) : "";
 
   const orchestrationBlock = `<section>
     <h2>Orchestration succession / régime matrimonial</h2>
@@ -254,13 +274,16 @@ export function renderCombinedHTML(
 <head>
 <meta charset="utf-8">
 <title>${esc(title)}</title>
-<style>${STYLE}</style>
+<style>${STYLE}
+${printStyle}</style>
 </head>
 <body>
+  ${cover}
+  ${discPage}
   <h1>${esc(title)}</h1>
   <p class="muted">Règlement (UE) 650/2012 + Règlement (UE) 2016/1103</p>
 
-  ${disclaimerBanner()}
+  ${branded ? "" : disclaimerBanner()}
 
   <section>
     <h2>Faits</h2>

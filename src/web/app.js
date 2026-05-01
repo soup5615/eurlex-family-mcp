@@ -943,6 +943,106 @@ async function logout() {
   showSignedOut();
 }
 
+// ---------- Branding ----------
+
+let currentBrandingLogo = null; // data URL while editing
+
+async function openBrandingDialog() {
+  const me = await fetchMe();
+  if (!me) return;
+  const b = me.branding ?? {};
+  const form = document.getElementById("branding-form");
+  form.firmName.value = b.firmName ?? "";
+  form.firmTagline.value = b.firmTagline ?? "";
+  form.firmAddress.value = b.firmAddress ?? "";
+  form.authorName.value = b.authorName ?? "";
+  form.authorTitle.value = b.authorTitle ?? "";
+  currentBrandingLogo = b.logoDataUrl ?? null;
+  renderBrandingLogoPreview();
+  document.getElementById("branding-dialog").showModal();
+}
+
+function renderBrandingLogoPreview() {
+  const div = document.getElementById("branding-logo-preview");
+  div.innerHTML = "";
+  if (!currentBrandingLogo) return;
+  const img = document.createElement("img");
+  img.src = currentBrandingLogo;
+  img.alt = "logo";
+  img.style.maxHeight = "60px";
+  img.style.maxWidth = "200px";
+  img.style.border = "1px solid #ddd";
+  img.style.padding = "4px";
+  const rm = document.createElement("button");
+  rm.type = "button";
+  rm.className = "btn";
+  rm.textContent = "Retirer le logo";
+  rm.style.marginLeft = ".5rem";
+  rm.addEventListener("click", () => {
+    currentBrandingLogo = null;
+    renderBrandingLogoPreview();
+  });
+  div.appendChild(img);
+  div.appendChild(rm);
+}
+
+async function readLogoFile(file) {
+  if (!file) return null;
+  if (file.size > 200 * 1024) {
+    alert("Logo trop volumineux (limite 200 Ko).");
+    return null;
+  }
+  return new Promise((resolve) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => resolve(null);
+    r.readAsDataURL(file);
+  });
+}
+
+async function saveBranding(ev) {
+  ev.preventDefault();
+  const form = document.getElementById("branding-form");
+  const fileInput = form.logoFile;
+  if (fileInput.files && fileInput.files[0]) {
+    const dataUrl = await readLogoFile(fileInput.files[0]);
+    if (dataUrl) currentBrandingLogo = dataUrl;
+  }
+  const fd = new FormData(form);
+  const branding = {
+    firmName: fd.get("firmName")?.toString().trim() || undefined,
+    firmTagline: fd.get("firmTagline")?.toString().trim() || undefined,
+    firmAddress: fd.get("firmAddress")?.toString().trim() || undefined,
+    authorName: fd.get("authorName")?.toString().trim() || undefined,
+    authorTitle: fd.get("authorTitle")?.toString().trim() || undefined,
+    logoDataUrl: currentBrandingLogo ?? undefined,
+  };
+  // Drop undefined values for cleanliness.
+  const cleaned = Object.fromEntries(
+    Object.entries(branding).filter(([, v]) => v !== undefined),
+  );
+  const res = await fetch("/api/auth/me/branding", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(cleaned),
+  });
+  if (!res.ok) {
+    alert("Erreur d'enregistrement.");
+    return;
+  }
+  document.getElementById("branding-dialog").close();
+}
+
+async function clearBranding() {
+  if (!confirm("Supprimer toutes les informations de cabinet ?")) return;
+  await fetch("/api/auth/me/branding", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ reset: true }),
+  });
+  document.getElementById("branding-dialog").close();
+}
+
 function showSignedIn(user) {
   const banner = document.getElementById("user-banner");
   banner.hidden = false;
@@ -1021,6 +1121,12 @@ async function init() {
       setAuthMode(authMode === "login" ? "register" : "login"),
     );
   document.getElementById("btn-logout").addEventListener("click", logout);
+  document.getElementById("btn-branding").addEventListener("click", openBrandingDialog);
+  document.getElementById("branding-form").addEventListener("submit", saveBranding);
+  document.getElementById("branding-cancel").addEventListener("click", () =>
+    document.getElementById("branding-dialog").close(),
+  );
+  document.getElementById("branding-clear").addEventListener("click", clearBranding);
 
   refreshTemplates();
   const me = await fetchMe();

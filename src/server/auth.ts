@@ -14,6 +14,16 @@ import {
 
 export type UserRole = "admin" | "user";
 
+export interface UserBranding {
+  firmName?: string;
+  firmAddress?: string;
+  firmTagline?: string;
+  logoDataUrl?: string;
+  authorName?: string;
+  authorTitle?: string;
+  jurisdictionTag?: string;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -22,6 +32,7 @@ export interface User {
   // scrypt-derived; we store {salt, hash} hex-encoded.
   passwordSalt: string;
   passwordHash: string;
+  branding?: UserBranding;
 }
 
 interface UserStoreShape {
@@ -149,13 +160,27 @@ export class UserStore {
     email: string;
     role: UserRole;
     createdAt: string;
+    branding?: UserBranding;
   } {
     return {
       id: user.id,
       email: user.email,
       role: user.role,
       createdAt: user.createdAt,
+      ...(user.branding ? { branding: user.branding } : {}),
     };
+  }
+
+  setBranding(userId: string, branding: UserBranding | null): User | undefined {
+    const u = this.state.users[userId];
+    if (!u) return undefined;
+    if (branding == null) {
+      delete u.branding;
+    } else {
+      u.branding = branding;
+    }
+    this.persist();
+    return u;
   }
 
   private persist(): void {
