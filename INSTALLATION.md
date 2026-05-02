@@ -1,81 +1,100 @@
 # Installation locale d'eurlex-family
 
-Trois étapes. Aucune ligne de commande pour l'usage courant — un simple double-clic.
+Choisissez votre méthode :
+
+| Méthode | Pré-requis | Avertissement Apple/Windows ? | Recommandé pour |
+|---|---|---|---|
+| **🐳 Docker (recommandé)** | Docker Desktop (signé Docker Inc) | **Non** | Tout le monde |
+| 🟢 Node.js | Node.js 20+ | Oui sur Mac/Windows (1× au premier lancement) | Développeurs |
 
 ---
 
-## Étape 1. Installer Node.js (une seule fois)
+## 🐳 Méthode A — Docker (zéro alerte, zéro compilation)
 
-Allez sur [nodejs.org](https://nodejs.org/fr/) et téléchargez la version « LTS » (recommandée).
+### A.1. Installer Docker Desktop (une seule fois)
 
-- **Mac** : ouvrez le `.pkg`, cliquez « Continuer » jusqu'à la fin.
-- **Windows** : ouvrez le `.msi`, cliquez « Suivant » jusqu'à la fin.
-- **Linux** : votre gestionnaire de paquets (`apt install nodejs npm` sur Ubuntu/Debian, etc.) ou [nodejs.org](https://nodejs.org/fr/).
+Allez sur **[docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/)**.
+- **Mac** : téléchargez Docker.dmg, ouvrez-le, glissez l'icône dans Applications.
+- **Windows** : téléchargez Docker Desktop Installer.exe, double-cliquez, suivez l'assistant.
+- **Linux** : installez Docker Engine + le plugin compose via votre gestionnaire de paquets.
 
-> Pour les PDF : installez aussi [Google Chrome](https://www.google.com/chrome/) ou [Chromium](https://www.chromium.org/getting-involved/download-chromium/). Sans Chrome, vous pouvez quand même télécharger les notes en HTML (et les imprimer en PDF depuis votre navigateur).
+> Docker Desktop est **signé numériquement par Docker Inc.** — pas d'alerte « non vérifié » sur Mac. C'est la seule installation système qu'il vous reste à faire.
 
----
+Lancez Docker Desktop une fois et attendez que l'icône (baleine) indique « Docker Desktop is running ».
 
-## Étape 2. Télécharger l'application
+### A.2. Télécharger ce projet
 
-1. Allez sur la page du projet :
-   `https://github.com/soup5615/eurlex-family-mcp`
-2. Cliquez sur le bouton vert **« Code »**, puis **« Download ZIP »**.
-3. Décompressez le fichier ZIP où vous voulez (Bureau, Documents, etc.).
+Sur **[github.com/soup5615/eurlex-family-mcp](https://github.com/soup5615/eurlex-family-mcp)**, sélectionnez la branche **`claude/succession-law-software-0YUMr`**, puis bouton **« Code » → « Download ZIP »**. Décompressez où vous voulez.
 
-> Vous devez vous assurer d'être sur la branche `claude/succession-law-software-0YUMr`. Sur GitHub : cliquez sur le sélecteur de branche en haut à gauche de la liste de fichiers, choisissez cette branche, puis cliquez sur « Code » → « Download ZIP ».
+### A.3. Double-cliquer
 
----
+Dans le dossier décompressé :
+- **Mac/Linux** : double-cliquez sur **`start-docker.command`**
+- **Windows** : double-cliquez sur **`start-docker.bat`**
 
-## Étape 3. Lancer l'application
+L'image se construit (~1-2 min la première fois), le conteneur démarre, votre navigateur s'ouvre automatiquement sur **http://localhost:4050**.
 
-Allez dans le dossier décompressé.
+### A.4. Pour arrêter
+- Mac/Linux : double-clic sur **`stop-docker.command`**
+- Windows : double-clic sur **`stop-docker.bat`**
 
-- **Mac** : double-cliquez sur **`start.command`**.
-  - La première fois, macOS peut bloquer le script. Faites alors **clic droit** → **Ouvrir** → confirmez « Ouvrir ».
-- **Windows** : double-cliquez sur **`start.bat`**.
-  - SmartScreen peut afficher un avertissement la première fois. Cliquez sur « Informations complémentaires » → « Exécuter quand même ».
-- **Linux** : double-cliquez sur **`start.sh`**, ou lancez `./start.sh` dans un terminal.
-
-Une fenêtre noire s'ouvre, fait défiler quelques messages d'installation **à la première exécution seulement** (30-60 secondes), puis votre navigateur s'ouvre automatiquement sur :
-
-```
-http://localhost:4050
-```
-
-C'est l'application. Vous pouvez créer un compte (le premier compte est administrateur) et commencer.
+Vos cas restent dans le dossier `data/` à côté du script. Pour relancer, re-double-cliquez sur le script de démarrage. Les fois suivantes, l'image est en cache → ~5 secondes.
 
 ---
 
-## Pour arrêter l'application
+## 🟢 Méthode B — Node.js (sans Docker)
 
-- **Mac / Linux** : revenez à la fenêtre Terminal et appuyez sur `Ctrl+C`, ou fermez la fenêtre.
-- **Windows** : fermez la fenêtre noire (l'invite de commandes).
+Plus léger en disque mais déclenche l'avertissement macOS Gatekeeper / Windows SmartScreen au premier lancement (à contourner par clic droit → Ouvrir).
 
-Vos cas restent enregistrés dans le dossier `data/` à côté du script. Pour relancer plus tard, double-cliquez à nouveau sur le script de démarrage.
+### B.1. Installer Node.js (une seule fois)
+[nodejs.org](https://nodejs.org/fr/) → version « LTS » → installeur classique.
+
+### B.2. Télécharger le ZIP du projet (idem A.2).
+
+### B.3. Lancer
+- **Mac** : **clic droit** sur `start.command` → **« Ouvrir »** → confirmez. (Double-clic les fois suivantes.)
+- **Windows** : double-clic sur `start.bat` (puis « Informations complémentaires » → « Exécuter quand même » la première fois).
+- **Linux** : `./start.sh` ou double-clic.
+
+Le script vérifie Node.js, installe les dépendances la première fois (~30-60 s), compile, démarre le serveur, ouvre le navigateur.
 
 ---
 
-## Problèmes courants
+## Avertissement Apple « ne peut pas être ouvert »
 
-**« Node.js n'est pas installé »** — vous avez sauté l'étape 1. Installez Node.js depuis nodejs.org puis relancez.
+Vous voyez cette alerte au premier lancement de `start.command` ou `start.bat` parce que les scripts ne sont pas signés avec un certificat Apple/Microsoft (qui coûte ~99 €/an et n'est pas appliqué à ce logiciel libre).
 
-**Le navigateur ne s'ouvre pas tout seul** — ouvrez votre navigateur et tapez `http://localhost:4050` dans la barre d'adresse.
+**3 solutions, par ordre de simplicité** :
 
-**Erreur sur Mac « start.command ne peut pas être ouvert »** — clic droit → Ouvrir → confirmez. macOS demande une seule fois.
+1. **Utilisez la méthode Docker** (ci-dessus) — Docker Desktop EST signé, donc plus aucune alerte ensuite.
+2. **Clic droit → Ouvrir** sur le script (au lieu de double-clic) → bouton « Ouvrir » dans la nouvelle fenêtre. Une seule fois.
+3. **Réglages Système → Confidentialité et sécurité** → en bas, « Ouvrir quand même ».
 
-**SmartScreen bloque sur Windows** — le script n'est pas signé numériquement (logiciel libre). Cliquez « Informations complémentaires » → « Exécuter quand même ». Vous pouvez vérifier le contenu du fichier `start.bat` dans un éditeur de texte ; c'est un script lisible.
+---
 
-**Le port 4050 est déjà pris** — lancez avec un autre port. En terminal :
+## Configuration
+
+| Variable | Défaut | Description |
+|---|---|---|
+| `PORT` | `4050` | Port d'écoute |
+| `HOST` | `127.0.0.1` (Node) / `0.0.0.0` (Docker) | Adresse |
+| `DATA_PATH` | `./data/cases.json` | Fichier des cas |
+| `CHROME_PATH` | détection auto | Chemin Chrome (PDF) |
+
+Exemple Mac/Linux :
 ```
-PORT=4060 ./start.command       # Mac/Linux
-set PORT=4060 && start.bat      # Windows
+PORT=8080 ./start.command
 ```
 
-**Génération PDF impossible** — vérifiez que Chrome/Chromium est installé, ou définissez `CHROME_PATH` :
-```
-CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ./start.command
-```
+---
+
+## Premier usage
+
+1. Créez un compte (le **premier** est admin).
+2. Allez dans **« Cabinet… »** pour configurer votre identité (logo, nom, adresse, auteur).
+3. Choisissez un onglet (Successions, Régime matrimonial, etc.) ou chargez un modèle prêt à l'emploi.
+4. Renseignez les faits → **Analyser**.
+5. **Note HTML** ou **PDF** pour télécharger le rendu (page de garde brandée, page d'avertissement, raisonnement article par article, sources & doctrine).
 
 ---
 

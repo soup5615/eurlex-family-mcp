@@ -1,0 +1,15 @@
+node_modules
+dist
+data
+.git
+.gitignore
+audit
+tests
+*.log
+.DS_Store
+.vitest-cache
+coverage
+README.md
+INSTALLATION.md
+.vscode
+.idea

@@ -1,0 +1,29 @@
+# eurlex-family — déploiement local via Docker Compose.
+#
+# Pour lancer :
+#   - Mac/Linux : double-cliquez sur start-docker.command
+#   - Windows   : double-cliquez sur start-docker.bat
+#
+# Ou en ligne de commande :
+#   docker compose up --build -d
+#
+# Pour arrêter :
+#   docker compose down
+#
+# Vos cas sont sauvegardés dans le dossier ./data/ à côté de ce
+# fichier. Pour repartir de zéro : supprimez ce dossier.
+
+services:
+  app:
+    build: .
+    image: eurlex-family:local
+    container_name: eurlex-family
+    ports:
+      - "4050:4050"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    environment:
+      - PORT=4050
+      - HOST=0.0.0.0
+      - DATA_PATH=/app/data/cases.json
